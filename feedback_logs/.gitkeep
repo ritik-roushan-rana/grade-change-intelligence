@@ -1,0 +1,2 @@
+# Keeps the feedback_logs/ directory in version control.
+# The operator feedback log (feedback_log.csv) is generated at runtime and is git-ignored.
