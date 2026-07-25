@@ -12,6 +12,7 @@ import plotly.express as px
 from plotly.subplots import make_subplots
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -136,10 +137,196 @@ def get_feedback_logger():
     return FeedbackLogger(FEEDBACK_LOG_PATH)
 
 
-ts_df, summary_df = load_data()
-analyzer = load_correlation_analyzer()
-model = load_prediction_model()
-engine = load_recommendation_engine()
+# ═══════════════════════════════════════════════════════
+# BOOT SEQUENCE
+# ═══════════════════════════════════════════════════════
+# Cold start costs ~26 seconds: reading ~50K samples, running the correlation
+# suite, training two models, and building the KNN recovery library. Without
+# feedback that is a blank page, so the work is staged behind a progress
+# screen that names the step currently running.
+
+_BOOT_STAGES = [
+    ("Loading process data",
+     "~50K samples across 119 grade-change events"),
+    ("Discovering correlations",
+     "Cross-correlation, variability and grade-pair analysis"),
+    ("Training prediction models",
+     "Random Forest classifier + Gradient Boosting regressor"),
+    ("Building recovery library",
+     "KNN index over successful historical recoveries"),
+]
+
+# Percent complete shown as each stage begins. Model training dominates the
+# wall clock, so the bar is weighted to match rather than split evenly.
+_BOOT_CHECKPOINTS = [4, 16, 28, 94]
+
+_BOOT_CSS = """
+<style>
+@keyframes gci-spin   { to { transform: rotate(360deg); } }
+@keyframes gci-pulse  { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes gci-sheen  { 0% { transform: translateX(-100%); } 100% { transform: translateX(280%); } }
+@keyframes gci-rise   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.gci-boot {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 62vh; padding: 24px 12px;
+    animation: gci-rise 0.45s ease both;
+}
+.gci-card {
+    width: 100%; max-width: 470px;
+    background: linear-gradient(160deg, #161b22 0%, #11151c 100%);
+    border: 1px solid #2d333b; border-radius: 16px;
+    padding: 34px 34px 26px;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.45);
+}
+.gci-logo { font-size: 2.4rem; line-height: 1; animation: gci-pulse 2.1s ease-in-out infinite; }
+.gci-title { margin-top: 12px; font-size: 1.16rem; font-weight: 700; color: #e6edf3; letter-spacing: -0.2px; }
+.gci-sub { margin-top: 3px; font-size: 0.76rem; color: #6e7681; text-transform: uppercase; letter-spacing: 1.1px; }
+
+.gci-track {
+    position: relative; height: 6px; margin: 22px 0 8px;
+    background: #21262d; border-radius: 99px; overflow: hidden;
+}
+.gci-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, #1f6feb, #58a6ff);
+}
+.gci-sheen {
+    position: absolute; inset: 0 auto 0 0; width: 34%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+    animation: gci-sheen 1.5s ease-in-out infinite;
+}
+.gci-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: #8b949e; }
+.gci-pct { font-variant-numeric: tabular-nums; color: #58a6ff; font-weight: 600; }
+
+.gci-steps { list-style: none; margin: 20px 0 0; padding: 0; }
+.gci-step { display: flex; gap: 11px; align-items: flex-start; padding: 7px 0; }
+.gci-mark {
+    flex: 0 0 auto; width: 14px; height: 14px; margin-top: 2px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.62rem; font-weight: 700;
+}
+.gci-mark-done { background: #238636; color: #ffffff; }
+.gci-mark-idle { border: 2px solid #30363d; }
+.gci-spin {
+    flex: 0 0 auto; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%;
+    border: 2px solid rgba(88,166,255,0.25); border-top-color: #58a6ff;
+    animation: gci-spin 0.75s linear infinite;
+}
+.gci-text { display: flex; flex-direction: column; line-height: 1.35; }
+.gci-name { font-size: 0.85rem; color: #484f58; }
+.gci-desc { font-size: 0.72rem; color: #30363d; }
+.gci-step-active .gci-name { color: #e6edf3; font-weight: 600; }
+.gci-step-active .gci-desc { color: #8b949e; }
+.gci-step-done  .gci-name { color: #8b949e; }
+.gci-step-done  .gci-desc { color: #484f58; }
+
+.gci-note {
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid #21262d;
+    font-size: 0.72rem; color: #6e7681; line-height: 1.5;
+}
+</style>
+"""
+
+
+def _render_boot(slot, stage_index, pct):
+    """Paint the boot screen with `stage_index` in flight at `pct` complete."""
+    steps = []
+    for i, (name, desc) in enumerate(_BOOT_STAGES):
+        if i < stage_index:
+            marker, row_cls = '<div class="gci-mark gci-mark-done">&#10003;</div>', "gci-step gci-step-done"
+        elif i == stage_index:
+            marker, row_cls = '<div class="gci-spin"></div>', "gci-step gci-step-active"
+        else:
+            marker, row_cls = '<div class="gci-mark gci-mark-idle"></div>', "gci-step"
+        steps.append(
+            f'<li class="{row_cls}">{marker}'
+            f'<div class="gci-text"><span class="gci-name">{name}</span>'
+            f'<span class="gci-desc">{desc}</span></div></li>'
+        )
+
+    active = _BOOT_STAGES[stage_index][0] if stage_index < len(_BOOT_STAGES) else "Ready"
+
+    slot.markdown(
+        _BOOT_CSS
+        + f"""
+<div class="gci-boot">
+  <div class="gci-card" role="status" aria-live="polite"
+       aria-label="Starting Grade Change Intelligence: {active}, {pct} percent complete">
+    <div class="gci-logo" aria-hidden="true">&#127981;</div>
+    <div class="gci-title">Grade Change Intelligence</div>
+    <div class="gci-sub">Honeywell QCS &middot; Paper Mill</div>
+
+    <div class="gci-track" role="progressbar" aria-valuenow="{pct}"
+         aria-valuemin="0" aria-valuemax="100">
+      <div class="gci-fill" style="width:{pct}%;"></div>
+      <div class="gci-sheen" aria-hidden="true"></div>
+    </div>
+    <div class="gci-meta"><span>{active}&hellip;</span><span class="gci-pct">{pct}%</span></div>
+
+    <ul class="gci-steps">{''.join(steps)}</ul>
+
+    <div class="gci-note">
+      Models are trained once on first launch, then held in cache &mdash;
+      later visits open instantly.
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+@st.cache_resource
+def _boot_state():
+    """Shared warm-start marker.
+
+    Lives in the same cache as the models, so it is discarded whenever they
+    are. That keeps the boot screen tied to real work: it appears on a genuine
+    cold start and is skipped once the caches are populated.
+    """
+    return {"warm": False}
+
+
+def _bootstrap():
+    state = _boot_state()
+    slot = None if state["warm"] else st.empty()
+
+    def begin(i):
+        if slot is not None:
+            _render_boot(slot, i, _BOOT_CHECKPOINTS[i])
+
+    begin(0)
+    data = load_data()
+    begin(1)
+    correlation = load_correlation_analyzer()
+    begin(2)
+    predictor = load_prediction_model()
+    begin(3)
+    recommender = load_recommendation_engine()
+
+    if slot is not None:
+        _render_boot(slot, len(_BOOT_STAGES), 100)
+        # Hold the completed state briefly, otherwise the 100% frame is
+        # replaced before the browser paints it and the bar appears to stop
+        # short of full.
+        time.sleep(0.35)
+        state["warm"] = True
+        slot.empty()
+
+    return data, correlation, predictor, recommender
+
+
+if not os.path.exists(TIMESERIES_PATH) or not os.path.exists(SUMMARY_PATH):
+    st.error("Process data not found — the dashboard has nothing to load.")
+    st.markdown(
+        f"Expected both CSVs in `{os.path.relpath(DATA_DIR, BASE_DIR)}/`. "
+        "Regenerate them with:"
+    )
+    st.code("python3 scripts/generate_grade_change_data.py", language="bash")
+    st.stop()
+
+(ts_df, summary_df), analyzer, model, engine = _bootstrap()
 feedback_logger = get_feedback_logger()
 
 # ─── Chart template (dark) ───
