@@ -1,6 +1,9 @@
-pandas>=2.0
-numpy>=1.24
-scipy>=1.10
-scikit-learn>=1.3
-streamlit>=1.28
-plotly>=5.15
+# Pinned to the versions this dashboard was developed and verified against.
+# Open ranges (>=) let a hosting platform resolve a future breaking release at
+# build time, which is the most common cause of "works locally, fails deployed".
+streamlit==1.60.0
+pandas==3.0.5
+numpy==2.5.1
+scipy==1.18.0
+scikit-learn==1.9.0
+plotly==6.9.0

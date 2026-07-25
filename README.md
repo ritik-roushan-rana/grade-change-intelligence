@@ -51,8 +51,9 @@ Alternatively use the launch script:
 ```
 grade-change-intelligence/
 ├── app.py                              # Streamlit dashboard (main entry point)
-├── requirements.txt                    # Python dependencies
+├── requirements.txt                    # Pinned Python dependencies
 ├── run_dashboard.sh                    # Convenience launch script
+├── .streamlit/config.toml              # Dark theme + server config
 ├── modules/
 │   ├── correlation_analysis.py         # Correlation discovery
 │   ├── prediction_model.py             # ML risk prediction
@@ -83,6 +84,27 @@ python3 scripts/generate_grade_change_data.py
 ```
 
 The generator is seeded (`SEED = 42`), so output is reproducible. Adjust the `CONFIG` block at the top of the script to change event count, noise, or resolution.
+
+---
+
+## Deployment
+
+The app is ready to deploy to [Streamlit Community Cloud](https://share.streamlit.io) straight from this repository.
+
+| Setting | Value |
+|---------|-------|
+| Repository | `ritik-roushan-rana/grade-change-intelligence` |
+| Branch | `main` |
+| Main file path | `app.py` |
+| Python version | **3.13** (set under *Advanced settings*) |
+
+Python 3.13 is not optional: the pinned `numpy` and `scipy` releases require Python 3.12 or newer, so selecting 3.11 or older in the deploy dialog will fail during dependency installation.
+
+No secrets or environment variables are needed — the dashboard reads only the bundled CSVs in `data/`.
+
+**Resource profile** (measured locally): peak memory ~320 MB, cold start ~26 seconds while the correlation analysis, model training, and recovery library are built. Results are held in `st.cache_resource`, so only the first visit after a restart pays that cost. Both figures sit within Community Cloud's free-tier limits.
+
+The dark theme is pinned in `.streamlit/config.toml`. The dashboard's custom CSS is built for a dark surface, so leaving the theme to the viewer's local preference would render it with unreadable contrast.
 
 ---
 
