@@ -247,34 +247,35 @@ def _render_boot(slot, stage_index, pct):
 
     active = _BOOT_STAGES[stage_index][0] if stage_index < len(_BOOT_STAGES) else "Ready"
 
-    slot.markdown(
-        _BOOT_CSS
-        + f"""
-<div class="gci-boot">
-  <div class="gci-card" role="status" aria-live="polite"
-       aria-label="Starting Grade Change Intelligence: {active}, {pct} percent complete">
-    <div class="gci-logo" aria-hidden="true">&#127981;</div>
-    <div class="gci-title">Grade Change Intelligence</div>
-    <div class="gci-sub">Honeywell QCS &middot; Paper Mill</div>
-
-    <div class="gci-track" role="progressbar" aria-valuenow="{pct}"
-         aria-valuemin="0" aria-valuemax="100">
-      <div class="gci-fill" style="width:{pct}%;"></div>
-      <div class="gci-sheen" aria-hidden="true"></div>
-    </div>
-    <div class="gci-meta"><span>{active}&hellip;</span><span class="gci-pct">{pct}%</span></div>
-
-    <ul class="gci-steps">{''.join(steps)}</ul>
-
-    <div class="gci-note">
-      Models are trained once on first launch, then held in cache &mdash;
-      later visits open instantly.
-    </div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
+    # Emitted as one unbroken line on purpose. A <div> opens a CommonMark HTML
+    # block that terminates at the first blank line, and any following line
+    # indented four spaces or more is then parsed as an indented code block and
+    # escaped -- which renders the markup as visible text instead of applying
+    # it. Keeping the card free of blank lines and leading indentation avoids
+    # both traps. The <style> block above is exempt: style is a raw-text HTML
+    # block that runs to its closing tag regardless of blank lines.
+    card = (
+        '<div class="gci-boot">'
+        '<div class="gci-card" role="status" aria-live="polite" '
+        f'aria-label="Starting Grade Change Intelligence: {active}, {pct} percent complete">'
+        '<div class="gci-logo" aria-hidden="true">&#127981;</div>'
+        '<div class="gci-title">Grade Change Intelligence</div>'
+        '<div class="gci-sub">Honeywell QCS &middot; Paper Mill</div>'
+        f'<div class="gci-track" role="progressbar" aria-valuenow="{pct}" '
+        'aria-valuemin="0" aria-valuemax="100">'
+        f'<div class="gci-fill" style="width:{pct}%;"></div>'
+        '<div class="gci-sheen" aria-hidden="true"></div>'
+        '</div>'
+        f'<div class="gci-meta"><span>{active}&hellip;</span>'
+        f'<span class="gci-pct">{pct}%</span></div>'
+        f'<ul class="gci-steps">{"".join(steps)}</ul>'
+        '<div class="gci-note">Models are trained once on first launch, then held'
+        ' in cache &mdash; later visits open instantly.</div>'
+        '</div>'
+        '</div>'
     )
+
+    slot.markdown(_BOOT_CSS + card, unsafe_allow_html=True)
 
 
 @st.cache_resource
