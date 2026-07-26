@@ -67,7 +67,7 @@ export function ErrorState({ error, context, onRetry }: ErrorStateProps) {
 
   return (
     <div className="rounded-panel border border-alarm-critical/50 bg-hmi-panel">
-      <header className="flex items-center justify-between gap-3 border-b border-alarm-critical/40 bg-alarm-critical-fill px-3 py-1.5">
+      <header className="flex items-center justify-between gap-3 border-b border-alarm-critical/40 bg-alarm-critical-fill px-4 py-2">
         <span className="text-tag uppercase text-alarm-critical">
           {unreachable ? 'Communication fault' : 'Display fault'}
         </span>
@@ -75,7 +75,7 @@ export function ErrorState({ error, context, onRetry }: ErrorStateProps) {
           {unreachable ? 'COMM.FAIL' : 'DISP.ERR'}
         </span>
       </header>
-      <div className="p-4">
+      <div className="p-5">
         <p className="text-body text-hmi-text">
           {unreachable
             ? 'No response from the prediction service.'
@@ -86,7 +86,7 @@ export function ErrorState({ error, context, onRetry }: ErrorStateProps) {
           <button
             type="button"
             onClick={onRetry}
-            className="mt-3 rounded-control border border-hmi-bezel bg-hmi-header px-3 py-1 font-mono text-micro uppercase text-hmi-text transition-colors hover:border-signal hover:text-signal"
+            className="mt-3 rounded-control border border-hmi-bezel bg-hmi-header px-3 py-1.5 font-mono text-micro uppercase text-hmi-text transition-colors hover:border-signal hover:text-signal"
           >
             Retry
           </button>
@@ -111,7 +111,7 @@ export function EmptyState({ title, hint, tag }: { title: string; hint?: ReactNo
 /** Inline notice where a display is valid but has nothing to compute yet. */
 export function Notice({ children, tag }: { children: ReactNode; tag?: string }) {
   return (
-    <div className="flex items-start gap-3 rounded-panel border border-hmi-bezel bg-hmi-panel px-4 py-3">
+    <div className="flex items-start gap-3 rounded-panel border border-hmi-bezel bg-hmi-panel p-5">
       <span className="mt-0.5 font-mono text-micro uppercase text-hmi-dim">
         {tag ?? 'INFO'}
       </span>

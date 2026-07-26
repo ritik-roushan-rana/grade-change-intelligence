@@ -35,7 +35,7 @@ export function CorrelationsPage() {
     return (
       <>
         <Header events={119} />
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3">
           <SkeletonPanel lines={1} label="Count" />
           <SkeletonPanel lines={1} label="Count" />
           <SkeletonPanel lines={1} label="Count" />
@@ -50,7 +50,7 @@ export function CorrelationsPage() {
     <>
       <Header events={data.n_events_analyzed} />
 
-      <div className="grid items-stretch gap-3 sm:grid-cols-3">
+      <div className="grid items-stretch gap-4 sm:grid-cols-3">
         <Faceplate
           label="Total findings"
           tag="COR.N"
@@ -137,7 +137,7 @@ function FindingPanel({ finding, index }: { finding: CorrelationFinding; index: 
       <p className="text-body text-hmi-text">{finding.description}</p>
 
       {finding.correlation_strength !== null && (
-        <div className="mt-4 grid items-stretch gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid items-stretch gap-4 sm:grid-cols-3">
           <Faceplate
             label="Correlation r"
             tag="COR.R"
@@ -172,10 +172,10 @@ function FindingPanel({ finding, index }: { finding: CorrelationFinding; index: 
       )}
 
       <div className="mt-4 rounded-panel border border-alarm-normal/40 bg-hmi-panel">
-        <header className="border-b border-alarm-normal/30 bg-alarm-normal-fill px-3 py-1.5">
+        <header className="border-b border-alarm-normal/30 bg-alarm-normal-fill px-4 py-2">
           <span className="text-tag uppercase text-alarm-normal">Recommended response</span>
         </header>
-        <p className="px-3 py-2.5 text-body text-hmi-text">{finding.recommendation}</p>
+        <p className="p-5 text-body text-hmi-text">{finding.recommendation}</p>
       </div>
 
       {finding.detail_data && finding.detail_data.length > 0 && (
@@ -217,7 +217,7 @@ function FeatureRow({ feature, rank }: { feature: FeatureImportance; rank: numbe
         : 'bg-hmi-bezel';
 
   return (
-    <li className="px-3 py-2.5">
+    <li className="px-5 py-3">
       <div className="flex items-baseline gap-2">
         <span className="font-mono text-micro text-hmi-dim">
           {String(rank).padStart(2, '0')}

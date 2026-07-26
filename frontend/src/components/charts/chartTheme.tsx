@@ -40,7 +40,7 @@ export interface PenSpec {
 /** Pen bar: swatch, tag code, name. Reads across the top of the recorder. */
 function PenLegend({ pens }: { pens: PenSpec[] }) {
   return (
-    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-hmi-line bg-hmi-panel px-3 py-1.5">
+    <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-hmi-line bg-hmi-panel px-4 py-2">
       {pens.map((pen) => (
         <li key={`${pen.tag}-${pen.name}`} className="flex items-center gap-1.5">
           <span
@@ -90,7 +90,7 @@ export function TrendPanel({
         className,
       )}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-hmi-line bg-hmi-header px-3 py-1.5">
+      <header className="flex items-center justify-between gap-3 border-b border-hmi-line bg-hmi-header px-4 py-2">
         <h3 className="text-tag uppercase text-hmi-label">{title}</h3>
         {aside ?? <span className="font-mono text-micro text-hmi-dim">{tag}</span>}
       </header>
@@ -105,9 +105,7 @@ export function TrendPanel({
         {children}
       </div>
 
-      {caption && (
-        <p className="px-3 py-2 text-caption text-hmi-dim">{caption}</p>
-      )}
+      {caption && <p className="px-4 py-2 text-caption text-hmi-dim">{caption}</p>}
     </section>
   );
 }

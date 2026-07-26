@@ -43,7 +43,7 @@ export function FeedbackLogPage() {
     return (
       <>
         <Header />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SkeletonPanel lines={1} label="Count" />
           <SkeletonPanel lines={1} label="Count" />
           <SkeletonPanel lines={1} label="Count" />
@@ -73,7 +73,7 @@ export function FeedbackLogPage() {
     <>
       <Header />
 
-      <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Faceplate
           label="Total decisions"
           tag="ACK.N"
@@ -111,7 +111,7 @@ export function FeedbackLogPage() {
             <a
               href={csvHref}
               download="feedback_log.csv"
-              className="rounded-control border border-hmi-bezel bg-hmi-header px-2.5 py-1 font-mono text-micro uppercase text-hmi-label transition-colors hover:border-signal hover:text-signal"
+              className="rounded-control border border-hmi-bezel bg-hmi-header px-3 py-1.5 font-mono text-micro uppercase text-hmi-label transition-colors hover:border-signal hover:text-signal"
             >
               ⬇ Export CSV
             </a>
@@ -221,7 +221,7 @@ export function FeedbackLogPage() {
                 return (
                   <li
                     key={key}
-                    className="flex items-baseline justify-between gap-3 px-3 py-2"
+                    className="flex items-baseline justify-between gap-3 px-5 py-2.5"
                   >
                     <span className="flex items-baseline gap-2">
                       <span className="font-mono text-micro text-hmi-dim">

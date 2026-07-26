@@ -17,6 +17,18 @@ interface PanelProps {
 }
 
 /**
+ * The console's spacing rule, applied by every panel-like surface in the app:
+ *
+ *   PANEL_BODY   20px inset on all sides, regardless of how much content the
+ *                panel happens to hold. A sparse panel gets a shorter height,
+ *                never looser padding.
+ *   PANEL_STRIP  16px horizontal / 8px vertical for header strips, pen bars and
+ *                footers, so every strip in the app is the same height.
+ */
+export const PANEL_BODY = 'p-5';
+export const PANEL_STRIP = 'px-4 py-2';
+
+/**
  * The console's only surface: a hairline-bordered instrument bezel with a
  * labelled header strip. Near-square corners, no drop shadow — depth comes from
  * the 1px border and the darker header, the way a bezelled panel on a real
@@ -42,14 +54,19 @@ export function Panel({
       )}
     >
       {hasHeader && (
-        <header className="flex items-center justify-between gap-3 border-b border-hmi-line bg-hmi-header px-3 py-1.5">
+        <header
+          className={clsx(
+            'flex items-center justify-between gap-3 border-b border-hmi-line bg-hmi-header',
+            PANEL_STRIP,
+          )}
+        >
           {label && <h3 className="text-tag uppercase text-hmi-label">{label}</h3>}
           {aside ?? (tag && <span className="font-mono text-micro text-hmi-dim">{tag}</span>)}
         </header>
       )}
       <div
         className={clsx(
-          padding === 'md' && 'p-4',
+          padding === 'md' && PANEL_BODY,
           fill && 'flex flex-1 flex-col',
         )}
       >

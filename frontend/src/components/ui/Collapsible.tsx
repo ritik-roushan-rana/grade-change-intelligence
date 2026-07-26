@@ -38,7 +38,7 @@ export function Collapsible({
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
         className={clsx(
-          'flex w-full items-center gap-3 bg-hmi-header px-3 py-2 text-left transition-colors hover:bg-hmi-bezel/40',
+          'flex w-full items-center gap-3 bg-hmi-header px-4 py-2 text-left transition-colors hover:bg-hmi-bezel/40',
           open && 'border-b border-hmi-line',
         )}
       >
@@ -52,7 +52,7 @@ export function Collapsible({
         {aside ?? (tag && <span className="font-mono text-micro text-hmi-dim">{tag}</span>)}
       </button>
       {open && (
-        <div id={panelId} className="animate-fade-in p-4">
+        <div id={panelId} className="animate-fade-in p-5">
           {children}
         </div>
       )}

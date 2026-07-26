@@ -92,7 +92,7 @@ export function DataTable<Row>({
                     active ? (sort!.direction === 'asc' ? 'ascending' : 'descending') : 'none'
                   }
                   className={clsx(
-                    'whitespace-nowrap border-b border-hmi-bezel px-3 py-1.5 text-tag uppercase text-hmi-label',
+                    'whitespace-nowrap border-b border-hmi-bezel px-4 py-2 text-tag uppercase text-hmi-label',
                     column.align === 'right' ? 'text-right' : 'text-left',
                   )}
                 >
@@ -137,7 +137,7 @@ export function DataTable<Row>({
                   <td
                     key={column.key}
                     className={clsx(
-                      'whitespace-nowrap px-3 py-1.5 text-caption text-hmi-text',
+                      'whitespace-nowrap px-4 py-2 text-caption text-hmi-text',
                       column.align === 'right' ? 'text-right' : 'text-left',
                       column.mono && 'font-mono',
                       column.className,
