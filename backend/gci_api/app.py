@@ -6,10 +6,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
+from . import paths
 from .api import router
 from .registry import registry
 
@@ -76,16 +78,58 @@ def create_app() -> FastAPI:
 
     app.include_router(router)
 
-    @app.get("/")
-    def root():
-        return {
-            "service": "Grade Change Intelligence API",
-            "docs": "/docs",
-            "health": "/api/health",
-        }
-
     @app.exception_handler(FileNotFoundError)
     async def missing_data_handler(request, exc: FileNotFoundError):
         return JSONResponse(status_code=503, content={"detail": str(exc)})
 
+    _mount_frontend(app)
     return app
+
+
+def _mount_frontend(app: FastAPI) -> None:
+    """Serve the built React app from this service, when a build exists.
+
+    Registered after the API router so /api and /docs always win. The catch-all
+    returns index.html for unknown paths because the UI uses client-side
+    routing: a cold request to /correlations has no file behind it and must be
+    answered with the shell so the router can take over.
+    """
+    if not paths.frontend_build_present():
+        log.info("No frontend build at %s — serving API only.", paths.FRONTEND_DIST)
+
+        @app.get("/")
+        def api_root():
+            return {
+                "service": "Grade Change Intelligence API",
+                "docs": "/docs",
+                "health": "/api/health",
+            }
+
+        return
+
+    index_file = os.path.join(paths.FRONTEND_DIST, "index.html")
+
+    # Vite emits every hashed asset and bundled font under /assets.
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(paths.FRONTEND_DIST, "assets")),
+        name="assets",
+    )
+
+    @app.get("/{spa_path:path}", include_in_schema=False)
+    def spa(spa_path: str):
+        # An unmatched /api path is a genuine 404, not a display route; without
+        # this, a mistyped endpoint would return the HTML shell and the client
+        # would fail on JSON parsing instead of reporting the real status.
+        if spa_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Unknown API endpoint.")
+        candidate = os.path.normpath(os.path.join(paths.FRONTEND_DIST, spa_path))
+        if (
+            spa_path
+            and candidate.startswith(paths.FRONTEND_DIST)
+            and os.path.isfile(candidate)
+        ):
+            return FileResponse(candidate)
+        return FileResponse(index_file)
+
+    log.info("Serving frontend build from %s", paths.FRONTEND_DIST)

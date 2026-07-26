@@ -25,8 +25,21 @@ DATA_DIR = os.path.join(REPO_ROOT, "data")
 TIMESERIES_PATH = os.path.join(DATA_DIR, "grade_change_timeseries.csv")
 SUMMARY_PATH = os.path.join(DATA_DIR, "grade_change_event_summary.csv")
 
-FEEDBACK_LOG_DIR = os.path.join(REPO_ROOT, "feedback_logs")
+FEEDBACK_LOG_DIR = os.environ.get(
+    "FEEDBACK_LOG_DIR", os.path.join(REPO_ROOT, "feedback_logs")
+)
 FEEDBACK_LOG_PATH = os.path.join(FEEDBACK_LOG_DIR, "feedback_log.csv")
+
+# Production build of the React app. When present, the API serves it directly so
+# a deployment is a single service on a single origin; in local development the
+# Vite dev server owns the UI instead and this stays absent.
+FRONTEND_DIST = os.environ.get(
+    "FRONTEND_DIST", os.path.join(REPO_ROOT, "frontend", "dist")
+)
+
+
+def frontend_build_present() -> bool:
+    return os.path.isfile(os.path.join(FRONTEND_DIST, "index.html"))
 
 
 def ensure_dirs() -> None:

@@ -1,0 +1,33 @@
+# Render blueprint for Grade Change Intelligence.
+#
+# One Docker service serving both the API and the React bundle. Deploy by
+# pointing Render at this repository: New > Blueprint.
+#
+# The models train during startup (~25s), so the first deploy takes a little
+# longer to go live than a plain web app. `initialDeployHook` is deliberately
+# unset — there is no migration step, and nothing to run before serving.
+
+services:
+  - type: web
+    name: grade-change-intelligence
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      # Render injects PORT; the container's CMD honours it.
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      # Same-origin API, so no cross-origin allowance is needed. Set this only
+      # if the UI is ever hosted separately.
+      - key: CORS_ORIGINS
+        sync: false
+      # Keep the operator feedback log across redeploys.
+      - key: FEEDBACK_LOG_DIR
+        value: /var/data/feedback_logs
+    disk:
+      name: feedback
+      mountPath: /var/data
+      sizeGB: 1
