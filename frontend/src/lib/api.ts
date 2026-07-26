@@ -6,8 +6,11 @@
  */
 
 import type {
+  CacheClearResponse,
+  CacheStatsResponse,
   CorrelationsResponse,
   EventsResponse,
+  FeedbackClearResponse,
   FeedbackRequest,
   FeedbackResponse,
   ModelInfoResponse,
@@ -103,4 +106,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
+  cacheStats: () => request<CacheStatsResponse>('/api/cache'),
+  clearCache: () => request<CacheClearResponse>('/api/cache/clear', { method: 'POST' }),
+  // The confirmation token is required by the API: this log is the evidence used
+  // to judge suggestion quality, so it cannot be dropped by an accidental call.
+  clearFeedback: () =>
+    request<FeedbackClearResponse>('/api/feedback?confirm=CLEAR', { method: 'DELETE' }),
 };

@@ -70,7 +70,7 @@ If the API is not running, the UI says so plainly ("Prediction service offline")
 
 ---
 
-## The four views
+## The displays
 
 | View | What it shows |
 |------|---------------|
@@ -78,6 +78,7 @@ If the API is not running, the UI says so plainly ("Prediction service offline")
 | **Correlations** | Finding counts by impact, six discovered correlations with r-value, p-value, recommendation, source and variables, grade-pair difficulty chart, and the twelve highest-impact parameters on stabilization with plain-language explanations |
 | **Historical Events** | Deviation vs stabilization scatter across all 119 events, sortable event register, per-event detail metrics, full-transition charts, operator action log, and optimal setpoints for the grade |
 | **Feedback Log** | Accept/reject totals and accept rate, full decision history, per-variable breakdown, CSV download |
+| **Settings** | Resets for each kind of state the station holds: browser display cache, session decision marks, event/clock selection, the API's memoised scoring (with hit/miss counters), and the persistent feedback log. Every control states what it drops and what survives; clearing the feedback log requires typing a confirmation token, and there is deliberately no control to drop the trained models |
 
 Interaction details: the time slider debounces ~150ms so a drag fires one request instead of one per pixel; responses are cached per `(event, time)` so scrubbing back is instant; requests slower than 300ms show a skeleton or spinner instead of a blank flash; Accept/Reject switches to a recorded badge immediately without waiting on a re-render.
 
@@ -100,6 +101,9 @@ All endpoints are under `/api`.
 | `GET` | `/optimal-setpoints/{grade}` | Setpoints from the fastest historical transitions into a grade |
 | `POST` | `/feedback` | Record a decision: `{event_id, timestamp, recommendation_id, decision}` |
 | `GET` | `/feedback` | Decision history with accept/reject totals |
+| `DELETE` | `/feedback?confirm=CLEAR` | Clear the feedback log. The token is required, not optional |
+| `GET` | `/cache` | Hit/miss counters for the per-(event, time) scoring caches |
+| `POST` | `/cache/clear` | Drop memoised scoring results. Trained models are retained |
 | `GET` | `/health`, `/model-info` | Readiness, model configuration, held-out evaluation metrics |
 
 `timestamp` on `POST /feedback` is the simulation time in seconds that the recommendation was generated for. The API resolves the recommendation server-side from its id, so the logged values always match what the model actually said.
@@ -183,7 +187,7 @@ For a hosted demo the app runs as **one service**: FastAPI serves the API *and* 
 ### Container
 
 Every push to `main` builds the image, starts it, probes every endpoint plus the
-four client-side routes, asserts the held-out metrics still read 94.5% / 88.1% /
+five client-side routes, asserts the held-out metrics still read 94.5% / 88.1% /
 0.985 from inside the container, and only then publishes to GHCR. So a
 ready-to-run image already exists:
 
@@ -218,7 +222,7 @@ It waits out the model warm-up, then asserts the service reports ready with all
 119 events loaded, every endpoint the UI calls answers 200 (including a scored
 prediction and its recommendations, so the classifier, regressor and KNN engine
 are all exercised), the held-out metrics still read 94.5% / 88.1% / 0.985 from
-inside the deployed artifact, the four client-side routes return the app shell,
+inside the deployed artifact, all five client-side routes return the app shell,
 an unknown `/api` path still returns JSON 404, and the hashed bundle referenced
 by `index.html` is actually served. Non-zero exit on the first failure.
 

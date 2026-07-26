@@ -682,6 +682,80 @@ def feedback_history() -> Dict[str, Any]:
 # ── Misc ──────────────────────────────────────────────────────────────────────
 
 
+# The memoised lookups a cache clear is allowed to drop. Everything else in
+# memory (datasets, trained models, recovery library) is warm-up state.
+_CACHES: Dict[str, Any] = {
+    "transition_frames": _transition_frame,
+    "predictions": _predict_cached,
+    "recommendations": _recommendations_cached,
+}
+
+
+def cache_stats() -> Dict[str, Any]:
+    """Hit/miss counters for the per-(event, time) memoisation.
+
+    Exposed so an operator can see whether the slider is being served from cache
+    rather than re-scoring, and judge whether clearing it would cost anything.
+    """
+    caches = []
+    for name, fn in _CACHES.items():
+        info = fn.cache_info()
+        looked_up = info.hits + info.misses
+        caches.append(
+            {
+                "name": name,
+                "label": _titleize(name),
+                "entries": info.currsize,
+                "capacity": info.maxsize,
+                "hits": info.hits,
+                "misses": info.misses,
+                "hit_rate": round(info.hits / looked_up, 3) if looked_up else None,
+            }
+        )
+    return {
+        "caches": caches,
+        "total_entries": sum(c["entries"] for c in caches),
+        # Models are held separately and are never dropped by a cache clear:
+        # retraining them would cost the full startup time again.
+        "models_loaded": registry.ready,
+        "model_warmup_seconds": registry.startup_seconds,
+    }
+
+
+def clear_caches() -> Dict[str, Any]:
+    """Drop memoised scoring results.
+
+    Only the derived per-(event, time) results are discarded. The trained models,
+    the recovery library and the loaded datasets stay in memory — clearing those
+    would mean paying the whole warm-up again for no benefit.
+    """
+    before = {name: fn.cache_info().currsize for name, fn in _CACHES.items()}
+    for fn in _CACHES.values():
+        fn.cache_clear()
+    return {
+        "cleared": before,
+        "total_cleared": sum(before.values()),
+        "models_retained": True,
+    }
+
+
+def clear_feedback_log() -> Dict[str, Any]:
+    """Truncate the operator feedback log, keeping its header row.
+
+    Destructive: the accept/reject history is the evidence used to judge
+    suggestion quality, so this exists for resetting a demo rather than for
+    routine use. Written through the logger's own column list so the file it
+    leaves behind is exactly what FeedbackLogger expects to append to.
+    """
+    logger = registry.feedback_logger
+    existing = logger.get_log()
+    removed = 0 if existing.empty else len(existing)
+
+    pd.DataFrame(columns=list(logger.COLUMNS)).to_csv(logger.log_path, index=False)
+
+    return {"cleared": True, "entries_removed": removed, "path": logger.log_path}
+
+
 def model_info() -> Dict[str, Any]:
     evaluation = registry.evaluation or {}
     return {

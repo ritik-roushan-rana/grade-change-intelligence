@@ -296,6 +296,35 @@ export interface ModelEvaluation {
   confusion_matrix: number[][];
 }
 
+export interface CacheEntry {
+  name: string;
+  label: string;
+  entries: number;
+  capacity: number;
+  hits: number;
+  misses: number;
+  hit_rate: number | null;
+}
+
+export interface CacheStatsResponse {
+  caches: CacheEntry[];
+  total_entries: number;
+  models_loaded: boolean;
+  model_warmup_seconds: number | null;
+}
+
+export interface CacheClearResponse {
+  cleared: Record<string, number>;
+  total_cleared: number;
+  models_retained: boolean;
+}
+
+export interface FeedbackClearResponse {
+  cleared: boolean;
+  entries_removed: number;
+  path: string;
+}
+
 export interface ModelInfoResponse {
   classifier: string;
   regressor: string;

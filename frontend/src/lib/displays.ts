@@ -39,6 +39,12 @@ export const DISPLAYS: DisplayEntry[] = [
     name: 'Feedback Log',
     hint: 'Acknowledge / reject history',
   },
+  {
+    path: '/settings',
+    code: 'DISP-05',
+    name: 'Settings',
+    hint: 'Cache & stored data resets',
+  },
 ];
 
 export const displayFor = (pathname: string): DisplayEntry =>

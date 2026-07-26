@@ -34,6 +34,10 @@ interface AppState {
   markPending: (recommendationId: string) => void;
   recordDecision: (recommendationId: string, decision: Decision) => void;
   clearPending: (recommendationId: string) => void;
+  /** Forget which suggestions were decided, so they can be actioned again. */
+  clearDecisions: () => void;
+  /** Return event selection and the simulation clock to their defaults. */
+  resetSelection: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -69,4 +73,9 @@ export const useAppStore = create<AppState>((set) => ({
       delete pending[recommendationId];
       return { pending };
     }),
+
+  clearDecisions: () => set({ decisions: {}, pending: {} }),
+
+  resetSelection: () =>
+    set({ selectedEventId: DEFAULT_EVENT_ID, simTime: DEFAULT_SIM_TIME }),
 }));
