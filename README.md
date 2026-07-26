@@ -253,11 +253,12 @@ Confirm the result:
 ./scripts/smoke_test.sh https://your-service.onrender.com
 ```
 
-> Serverless platforms are not an option for this service. The ML stack alone is
-> ~253 MB installed (scipy 99, pandas 72, scikit-learn 48, numpy 34), over
-> Vercel's 250 MB function limit before any project code; and per-invocation
-> functions have no long-lived process to hold the trained models, so the warm-up
-> would run on every cold call or time out.
+> Serverless function platforms are not an option for this service. The ML stack
+> alone is ~253 MB installed (scipy 99, pandas 72, scikit-learn 48, numpy 34),
+> which exceeds the ~250 MB bundle ceiling such platforms typically impose before
+> any project code is added; and per-invocation functions have no long-lived
+> process to hold the trained models, so the warm-up would run on every cold call
+> or time out. This service needs a container or a persistent process.
 
 ### What to expect when hosting
 
