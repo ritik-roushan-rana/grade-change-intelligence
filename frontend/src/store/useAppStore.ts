@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import type { Decision } from '../lib/types';
 
-/** Sidebar demo presets, matching the Streamlit dashboard. */
+/** Sidebar demo presets: a typical transition and the worst case in the dataset. */
 export const DEMO_PRESETS = {
   moderate: { eventId: 46, label: 'Moderate', hint: 'Event 46 — typical transition' },
   extreme: { eventId: 5, label: 'Extreme', hint: 'Event 5 — worst-case' },
@@ -46,8 +46,8 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) =>
       state.selectedEventId === eventId
         ? state
-        : // Changing event rewinds the clock, the same way the Streamlit slider
-          // was keyed per event and reset on switch.
+        : // Changing event rewinds the clock: the previous position has no
+          // meaning against a different transition.
           { ...state, selectedEventId: eventId, simTime: DEFAULT_SIM_TIME },
     ),
 

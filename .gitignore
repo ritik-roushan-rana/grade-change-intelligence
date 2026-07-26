@@ -19,8 +19,6 @@ ENV/
 .agents/
 .claude/
 
-# ─── Streamlit ───
-.streamlit/secrets.toml
 # ─── Node / Vite frontend ───
 node_modules/
 frontend/dist/

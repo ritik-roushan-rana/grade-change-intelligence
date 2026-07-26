@@ -27,8 +27,5 @@ feedback_logs/*.csv
 .vscode/
 .DS_Store
 
-# Streamlit app is not part of this image
-app.py
-run_dashboard.sh
-.streamlit/
+# Documentation is not needed at runtime
 docs/
