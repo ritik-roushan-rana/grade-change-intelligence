@@ -69,7 +69,8 @@ for path in \
   '/api/recipe-limits/Grade-B-Std?event_id=46&t=180' \
   '/api/optimal-setpoints/Grade-B-Std' \
   '/api/feedback' \
-  '/api/model-info'
+  '/api/model-info' \
+  '/api/cache'
 do
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "${BASE_URL}${path}")
   [ "${code}" = '200' ] || fail "${code} ${path}"
@@ -87,8 +88,21 @@ for expected in "${EXPECTED_METRICS[@]}"; do
 done
 
 # ── Served frontend ──────────────────────────────────────────────────────────
+# A deployment serves the UI from the API. A local split dev setup does not: the
+# API runs alone and Vite owns the UI on another port, so it answers / with its
+# own JSON root. Detect that and skip rather than report a false failure.
 step 'Frontend and client routes'
-for path in '/' '/correlations' '/events' '/feedback'; do
+root_type=$(curl -s -o /dev/null -w '%{content_type}' --max-time 30 "${BASE_URL}/")
+case "${root_type}" in
+  application/json*)
+    pass 'API-only mode — no frontend build mounted, skipping UI checks'
+    printf '\n\033[32mAPI checks passed.\033[0m %s is serving the API without a UI build.\n' \
+      "${BASE_URL}"
+    exit 0
+    ;;
+esac
+
+for path in '/' '/correlations' '/events' '/feedback' '/settings'; do
   out=$(curl -s -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "${BASE_URL}${path}")
   code=${out%% *}
   type=${out#* }

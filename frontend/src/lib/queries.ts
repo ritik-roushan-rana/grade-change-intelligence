@@ -34,6 +34,7 @@ export const queryKeys = {
     ['recipe-limits', grade, eventId, t] as const,
   optimalSetpoints: (grade: string) => ['optimal-setpoints', grade] as const,
   feedback: ['feedback'] as const,
+  cache: ['cache'] as const,
 };
 
 export const useEvents = () =>
@@ -103,6 +104,39 @@ export const useFeedback = () =>
     // allowed to go stale and be refetched.
     staleTime: 0,
   });
+
+export const useCacheStats = () =>
+  useQuery({
+    queryKey: queryKeys.cache,
+    queryFn: api.cacheStats,
+    // Counters move with every request, so this is the one query that must not
+    // be served from cache — it would be reporting on itself.
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+/** Clear the API's memoised scoring results. Trained models are retained. */
+export const useClearServerCache = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.clearCache,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cache });
+    },
+  });
+};
+
+/** Truncate the operator feedback log. Destructive. */
+export const useClearFeedback = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.clearFeedback,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.feedback });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.cache });
+    },
+  });
+};
 
 export const useSubmitFeedback = () => {
   const queryClient = useQueryClient();

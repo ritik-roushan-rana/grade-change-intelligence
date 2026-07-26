@@ -154,3 +154,30 @@ def post_feedback(payload: FeedbackRequest):
 def get_feedback():
     """Feedback history with accept/reject totals."""
     return jsonable(services.feedback_history())
+
+
+@router.delete("/feedback")
+def delete_feedback(confirm: str = Query(..., description="Must be the literal string CLEAR.")):
+    """Clear the operator feedback log.
+
+    Destructive: this log is the evidence used to judge suggestion quality, so
+    the confirmation token is required rather than optional.
+    """
+    if confirm != "CLEAR":
+        raise HTTPException(
+            status_code=400,
+            detail="Refusing to clear the feedback log without confirm=CLEAR.",
+        )
+    return jsonable(services.clear_feedback_log())
+
+
+@router.get("/cache")
+def get_cache():
+    """Memoisation counters for the per-(event, time) scoring caches."""
+    return jsonable(services.cache_stats())
+
+
+@router.post("/cache/clear")
+def post_cache_clear():
+    """Drop memoised scoring results. Trained models are retained."""
+    return jsonable(services.clear_caches())
