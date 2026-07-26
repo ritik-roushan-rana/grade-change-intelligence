@@ -42,29 +42,56 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #0e1117; }
     [data-testid="stSidebar"] .stMarkdown p { font-size: 0.85rem; }
 
+    /* Card row alignment
+       ------------------------------------------------------------------
+       st.metric and the hand-rolled .risk-card sit side by side in the
+       same row, so they share one box model: identical padding, radius and
+       a common min-height. The shared min-height is what keeps the row
+       even, because a metric carrying a delta chip is otherwise taller
+       than one without it (e.g. "Projected (60s)" has no chip). */
+    [data-testid="stMetric"],
+    .risk-card {
+        box-sizing: border-box;
+        min-height: 92px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+    }
+
     /* Metrics */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #1a1f2e 0%, #161b22 100%);
         border: 1px solid #2d333b;
-        border-radius: 10px;
-        padding: 12px 16px;
     }
-    [data-testid="stMetricValue"] { font-size: 1.4rem !important; font-weight: 700 !important; }
+    [data-testid="stMetricValue"] { font-size: 1.4rem !important; font-weight: 700 !important; line-height: 1.2 !important; }
     [data-testid="stMetricLabel"] { font-size: 0.75rem !important; text-transform: uppercase; letter-spacing: 0.5px; }
 
-    /* Cards / Containers */
+    /* Risk card — mirrors the metric anatomy so baselines line up across the
+       row: muted uppercase label on top, large value beneath, left aligned.
+       Previously the value sat centred with the label below it, which read as
+       a different component and broke the row's rhythm. */
     .risk-card {
-        border-radius: 10px;
-        padding: 12px 16px;
-        text-align: center;
+        border: 1px solid rgba(255,255,255,0.10);
         box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-height: 74px;
     }
-    .risk-card h2 { margin: 0; font-size: 1.5rem; color: white; line-height: 1.1; }
-    .risk-card p { margin: 2px 0 0 0; font-size: 0.7rem; color: rgba(255,255,255,0.85); text-transform: uppercase; letter-spacing: 0.6px; }
+    .risk-card .risk-label {
+        margin: 0;
+        font-size: 0.75rem;
+        font-weight: 400;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(255,255,255,0.82);
+    }
+    .risk-card .risk-value {
+        margin: 0;
+        font-size: 1.4rem;
+        font-weight: 700;
+        line-height: 1.2;
+        color: #ffffff;
+    }
 
     /* Recommendation cards */
     .rec-card {
@@ -446,7 +473,10 @@ if page == "Live Monitor":
     max_time = int(transition_data["time_since_transition_start_sec"].max())
 
     # ── Time Slider (keyed per event so it persists but resets on event change) ──
-    slider_col, prog_col = st.columns([4, 1])
+    # Centre-aligned: the slider is a short control with its label above and
+    # tick values below, while the progress metric is a 92px card. Top-aligning
+    # the two leaves the card overhanging the slider at the bottom.
+    slider_col, prog_col = st.columns([4, 1], vertical_alignment="center")
     with slider_col:
         current_time = st.slider(
             "Simulation Time (seconds since transition start)",
@@ -480,8 +510,9 @@ if page == "Live Monitor":
         bg = risk_colors.get(risk_level, "#333")
         st.markdown(
             f'<div class="risk-card" style="background:{bg};">'
-            f'<h2>{risk_level.upper()}</h2>'
-            f'<p>Risk Level</p></div>',
+            f'<p class="risk-label">Risk Level</p>'
+            f'<p class="risk-value">{risk_level.upper()}</p>'
+            f'</div>',
             unsafe_allow_html=True,
         )
     with col2:
