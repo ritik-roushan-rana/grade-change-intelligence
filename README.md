@@ -1,5 +1,12 @@
 # Grade Change Intelligence System
 
+**Live demo:** <https://grade-change-intelligence-latest.onrender.com>
+
+> Hosted on a free instance, which sleeps after ~15 minutes of inactivity. A cold
+> visit waits out the model warm-up — measured at 7 minutes on that instance's
+> 0.1 CPU. Open the link a few minutes before showing it to anyone, or move the
+> service to a paid instance so it stays awake.
+
 An intelligent assistant for a paper mill's Quality Control System (QCS) that predicts and helps prevent off-spec paper during grade changes, learning from historical transition data.
 
 The system watches an in-progress grade change, flags rising risk of exceeding the 2.5% Basis Weight deviation limit *before* it happens, recommends corrective setpoint adjustments based on similar historical recoveries, and explains the reasoning behind every suggestion.
