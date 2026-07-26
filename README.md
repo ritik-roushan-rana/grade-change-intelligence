@@ -229,9 +229,15 @@ after publishing, against the image pulled back down from the registry.
   invocation or time out.
 
 A Vercel deployment therefore serves the UI while every `/api/*` call returns
-404. `vercel.json` in this repository builds the frontend and adds the SPA
-fallback so client-side routes like `/correlations` resolve, but the UI still
-needs an API to talk to.
+404. `frontend/vercel.json` adds the SPA fallback so client-side routes like
+`/correlations` resolve on a cold link, but the UI still needs an API to talk to.
+
+That file lives in `frontend/`, not the repository root, because the Vercel
+project's **Root Directory** is `frontend` — paths in `vercel.json` resolve
+relative to the Root Directory, so a root-level config with `cd frontend` and
+`frontend/dist` in it points one level too deep and fails the build. It
+deliberately contains no build overrides: Vercel auto-detects Vite from
+`frontend/package.json` and that already works.
 
 To run split hosting, deploy the API as a container (see above) and then wire the
 two together:
