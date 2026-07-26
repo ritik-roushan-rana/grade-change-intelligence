@@ -4,118 +4,204 @@ An intelligent assistant for a paper mill's Quality Control System (QCS) that pr
 
 The system watches an in-progress grade change, flags rising risk of exceeding the 2.5% Basis Weight deviation limit *before* it happens, recommends corrective setpoint adjustments based on similar historical recoveries, and explains the reasoning behind every suggestion.
 
----
+The user interface is a **React + TypeScript** app. All model logic stays in **Python**, reached over a REST API:
 
-## Features
+```
+React (UI)  ──HTTP──▶  FastAPI  ──▶  modules/  (Random Forest · Gradient Boosting · KNN · correlations)
+    ◀────────JSON──────────────────────┘
+```
 
-| Module | What it does |
-|--------|--------------|
-| **Correlation Analysis** | Discovers real process relationships — steam→moisture lag, filler→ash variability, grade-pair difficulty ranking, early volatility signals |
-| **Prediction Model** | Random Forest classifier (will deviation breach 2.5% in the next 60s?) + Gradient Boosting regressor (projected deviation magnitude) |
-| **Recommendation Engine** | KNN similarity search over a library of historical recoveries, returning weighted setpoint adjustments with rationale |
-| **Recipe Limits** | Per-grade constraint tables so recommendations stay inside valid operating ranges |
-| **Feedback Logging** | Records every operator accept/reject decision with full context for later review |
-
-Model performance is evaluated with an **event-based holdout** (all samples from a held-out grade change go exclusively to the test set) to avoid the data leakage that random row splitting introduces. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for honest metrics.
+No prediction, scoring, projection or recommendation logic is reimplemented in JavaScript. The browser formats and draws what Python returns.
 
 ---
 
 ## Quickstart
 
-Requires Python 3.10+.
+Requires **Python 3.12+** and **Node.js 20+**. Two terminals: the API has to be up before the UI is useful.
+
+### 1. Backend (port 8000) — start this first
 
 ```bash
-# 1. Create and activate a virtual environment
 python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r backend/requirements.txt
 
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Launch the dashboard
-streamlit run app.py
+cd backend
+uvicorn main:app --port 8000
 ```
 
-Then open http://localhost:8501.
+Wait for the readiness line before opening the UI:
 
-Alternatively use the launch script:
+```
+Models ready (23.9s). 119 events, 344 recovery patterns.
+```
+
+That pause is the one-time warm-up: reading ~50K samples, running the correlation suite, training the classifier and regressor, and building the KNN recovery library. It happens **once at startup**, not per request, so every API call afterwards is served from warm objects.
+
+Check it with:
 
 ```bash
-./run_dashboard.sh
+curl http://127.0.0.1:8000/api/health
+# {"status":"ready","events":119,"startup_seconds":23.91}
+```
+
+Interactive API docs: <http://127.0.0.1:8000/docs>
+
+### 2. Frontend (port 5173)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open <http://localhost:5173>.
+
+The Vite dev server proxies `/api` to `http://127.0.0.1:8000`, so the browser talks to a same-origin path and CORS never comes up during a demo. The API also sends CORS headers for ports 5173/4173, so a production build can call it directly — point it somewhere else with `VITE_API_BASE_URL`.
+
+If the API is not running, the UI says so plainly ("Prediction service offline") with the command to start it, rather than showing a raw fetch error.
+
+---
+
+## The four views
+
+| View | What it shows |
+|------|---------------|
+| **Live Monitor** | Event selector, Moderate/Extreme demo presets, simulation time slider, risk level, current & projected (60s) deviation, status label, plain-language prediction explanation, basis-weight and deviation charts, process-variable detail, future-state projection with dashed forward extrapolation and a "Now" marker, per-60s rate-of-change metrics, recipe-limit table with live values, and recommendation cards with Accept/Reject |
+| **Correlations** | Finding counts by impact, six discovered correlations with r-value, p-value, recommendation, source and variables, grade-pair difficulty chart, and the twelve highest-impact parameters on stabilization with plain-language explanations |
+| **Historical Events** | Deviation vs stabilization scatter across all 119 events, sortable event register, per-event detail metrics, full-transition charts, operator action log, and optimal setpoints for the grade |
+| **Feedback Log** | Accept/reject totals and accept rate, full decision history, per-variable breakdown, CSV download |
+
+Interaction details: the time slider debounces ~150ms so a drag fires one request instead of one per pixel; responses are cached per `(event, time)` so scrubbing back is instant; requests slower than 300ms show a skeleton or spinner instead of a blank flash; Accept/Reject switches to a recorded badge immediately without waiting on a re-render.
+
+---
+
+## API
+
+All endpoints are under `/api`.
+
+| Method | Endpoint | Returns |
+|--------|----------|---------|
+| `GET` | `/events` | All events: id, grade, max deviation, stabilization time, operator action count |
+| `GET` | `/events/{id}` | One event summary plus its transition duration |
+| `GET` | `/events/{id}/timeline` | Full timeseries for one event, plus operator actions |
+| `GET` | `/events/{id}/predict?t=` | Risk level, current & projected deviation, status label, explanation, contributing factors |
+| `GET` | `/events/{id}/projection?t=` | Forward trend extrapolation: deviation plus correlated moisture/steam, and per-60s rates |
+| `GET` | `/events/{id}/recommendations?t=` | Setpoint changes with rationale, source tag, similarity match %, and recipe-limit clamp status |
+| `GET` | `/correlations` | Correlation findings and model feature importances |
+| `GET` | `/recipe-limits/{grade}` | Min/max operating ranges; pass `event_id` and `t` to annotate with live values |
+| `GET` | `/optimal-setpoints/{grade}` | Setpoints from the fastest historical transitions into a grade |
+| `POST` | `/feedback` | Record a decision: `{event_id, timestamp, recommendation_id, decision}` |
+| `GET` | `/feedback` | Decision history with accept/reject totals |
+| `GET` | `/health`, `/model-info` | Readiness, model configuration, held-out evaluation metrics |
+
+`timestamp` on `POST /feedback` is the simulation time in seconds that the recommendation was generated for. The API resolves the recommendation server-side from its id, so the logged values always match what the model actually said.
+
+---
+
+## Model performance
+
+Evaluated with an **event-based holdout**: every sample from a held-out grade change goes exclusively to the test set, avoiding the leakage that random row splitting introduces on timeseries data.
+
+| Metric | Held-out test |
+|--------|---------------|
+| Classifier accuracy | 94.5% (majority-class baseline 78.1%) |
+| Precision / Recall | 83.9% / 92.8% |
+| F1 | 88.1% |
+| Regressor R² | 0.985 |
+| Regressor MAE | 0.283% |
+
+89 train events / 30 test events · 15,664 train samples / 5,280 test samples. Reproduce with `python3 scripts/evaluation_report.py`.
+
+---
+
+## Project structure
+
+```
+grade-change-intelligence/
+├── backend/                            # FastAPI app — wraps the models, defines no model logic
+│   ├── main.py                         # Entry point (uvicorn main:app)
+│   ├── requirements.txt                # Web layer + the pinned ML stack
+│   └── gci_api/
+│       ├── app.py                      # App factory, CORS, startup warm-up
+│       ├── api.py                      # Route definitions
+│       ├── services.py                 # Read paths into the models + trend extrapolation
+│       ├── registry.py                 # Process-wide singletons (data, models, feedback log)
+│       ├── paths.py                    # Locates the repo root, data CSVs, feedback log
+│       ├── schemas.py                  # Request validation
+│       ├── serialization.py            # pandas/numpy → JSON-safe values
+│       └── explanations.py             # Plain-language copy for model features
+├── frontend/                           # React + TypeScript + Vite
+│   ├── tailwind.config.js              # Design tokens: colours, type scale, radii, motion
+│   └── src/
+│       ├── lib/                        # Typed API client, React Query hooks, risk/format helpers
+│       ├── store/                      # Zustand: selected event, sim time, decisions
+│       ├── components/{ui,charts,layout,monitor}/
+│       └── pages/                      # One file per view
+├── app.py                              # Original Streamlit dashboard (still runnable)
+├── modules/                            # Unchanged, validated model code
+│   ├── correlation_analysis.py
+│   ├── prediction_model.py
+│   ├── recommendation_engine.py
+│   └── recipe_limits.py
+├── data/                               # Process timeseries (~50K rows) + 119-event summary
+├── scripts/                            # Dataset generator, evaluation report
+├── docs/                               # ARCHITECTURE.md, DOCUMENTATION.md
+└── feedback_logs/                      # Operator decision log (written at runtime)
+```
+
+Both UIs read and write the same `feedback_logs/feedback_log.csv`, in the same format.
+
+---
+
+## Design notes
+
+The interface is modelled on a DCS operator console (Honeywell Experion / TDC style), not a web dashboard. Every colour, size and radius the UI may use is declared in `frontend/tailwind.config.js`; the alarm/pen/tag semantics live in `frontend/src/lib/hmi.ts`.
+
+- **Console surfaces** — page `#0A0E14`, panel face `#12181F`, header strip `#171E27`, recessed wells `#0D1218`. Panels are separated by 1px hairlines (`#1F2937`) with a 2px radius and no drop shadows, so they read as bezelled instruments rather than soft cards. A faint schematic grid sits behind the whole display area.
+- **Alarm scale (ISA-18.2)** — CRITICAL `#E5484D`, HIGH `#F5A524`, MEDIUM `#F5D90A` (used sparingly), NORMAL `#2DD4BF`. Defined once and resolved through `alarmStyle()` wherever a state appears: banner, badge, table cell, chart stroke. Red is desaturated enough not to vibrate on a projector.
+- **One interactive signal** — the same teal as NORMAL marks everything actionable: active display in the rail, transport slider, ACKNOWLEDGE control, focus ring.
+- **Trend pens** — saturated recorder colours, one fixed pen per instrument tag (`BW.PV` blue, `BW.SP` green, `BW.DEV` violet, `MOI.PV` cyan, `ST.PV` amber, `SF.PV` magenta, `MS.PV` steel), each printed with its tag in a pen bar above the chart.
+- **Typography** — IBM Plex Mono for every process value, tag code, setpoint and timestamp, with tabular figures so digits do not shift as the clock advances. IBM Plex Sans is reserved for prose (prediction explanation, rationale) and for uppercase letter-spaced panel labels. Fonts are bundled, so the app renders correctly with no outbound network.
+- **Instrument conventions** — variables carry tag codes alongside human names (`Steam Pressure · ST.PV`), events are tagged `GC-0046`, screens are numbered `DISP-01`…`DISP-04`, and process values are shown as faceplates: large digits plus a bar locating the reading inside its recipe range, with a tick at the operating limit.
+- **One signature moment** — the trends are strip-chart recorders: traces sit on graph paper, a square pen nib rests on the newest sample and blinks on a slow two-step cycle, and a dashed NOW scan line divides measured paper from extrapolation. Nothing else in the app animates, and it respects `prefers-reduced-motion`.
+
+---
+
+## Original Streamlit dashboard
+
+`app.py` is untouched and still runs, which makes it easy to compare the two front ends side by side:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py                     # http://localhost:8501
 ```
 
 ---
 
-## Project Structure
+## Running components individually
 
+```bash
+python3 scripts/evaluation_report.py       # Model evaluation report
+python3 scripts/generate_grade_change_data.py  # Regenerate the dataset (seeded, SEED = 42)
+python3 -m modules.correlation_analysis    # Correlation findings
+python3 -m modules.prediction_model        # Train + report metrics
+python3 -m modules.recommendation_engine   # Build recovery library
 ```
-grade-change-intelligence/
-├── app.py                              # Streamlit dashboard (main entry point)
-├── requirements.txt                    # Pinned Python dependencies
-├── run_dashboard.sh                    # Convenience launch script
-├── .streamlit/config.toml              # Dark theme + server config
-├── modules/
-│   ├── correlation_analysis.py         # Correlation discovery
-│   ├── prediction_model.py             # ML risk prediction
-│   ├── recommendation_engine.py        # KNN recovery matching + feedback logging
-│   └── recipe_limits.py                # Grade recipe constraint tables
-├── data/
-│   ├── grade_change_timeseries.csv     # Process timeseries (~50K rows, 15-sec resolution)
-│   └── grade_change_event_summary.csv  # Per-event outcome summary (119 events)
-├── scripts/
-│   ├── generate_grade_change_data.py   # Synthetic dataset generator (seeded, reproducible)
-│   └── evaluation_report.py            # Prints model evaluation report
-├── docs/
-│   ├── ARCHITECTURE.md                 # System architecture & validation
-│   └── DOCUMENTATION.md                # Extended documentation
-└── feedback_logs/                      # Operator decision log (written at runtime)
+
+Frontend checks:
+
+```bash
+cd frontend
+npm run typecheck                          # tsc --noEmit
+npm run build                              # typecheck + production bundle
 ```
 
 ---
 
 ## Data
 
-The dataset is **synthetic**, produced by `scripts/generate_grade_change_data.py`. It simulates a Honeywell QCS / MD-control style paper machine across 119 grade-change events, with deliberately embedded, discoverable relationships (for example a steam-pressure lag driving moisture, which in turn drives basis weight).
-
-The committed CSVs are the exact inputs the dashboard reads. To regenerate them:
-
-```bash
-python3 scripts/generate_grade_change_data.py
-```
-
-The generator is seeded (`SEED = 42`), so output is reproducible. Adjust the `CONFIG` block at the top of the script to change event count, noise, or resolution.
-
----
-
-## Deployment
-
-The app is ready to deploy to [Streamlit Community Cloud](https://share.streamlit.io) straight from this repository.
-
-| Setting | Value |
-|---------|-------|
-| Repository | `ritik-roushan-rana/grade-change-intelligence` |
-| Branch | `main` |
-| Main file path | `app.py` |
-| Python version | **3.13** (set under *Advanced settings*) |
-
-Python 3.13 is not optional: the pinned `numpy` and `scipy` releases require Python 3.12 or newer, so selecting 3.11 or older in the deploy dialog will fail during dependency installation.
-
-No secrets or environment variables are needed — the dashboard reads only the bundled CSVs in `data/`.
-
-**Resource profile** (measured locally): peak memory ~320 MB, cold start ~26 seconds while the correlation analysis, model training, and recovery library are built. Results are held in `st.cache_resource`, so only the first visit after a restart pays that cost. Both figures sit within Community Cloud's free-tier limits.
-
-The dark theme is pinned in `.streamlit/config.toml`. The dashboard's custom CSS is built for a dark surface, so leaving the theme to the viewer's local preference would render it with unreadable contrast.
-
----
-
-## Running Components Individually
-
-```bash
-python3 scripts/evaluation_report.py       # Model evaluation report
-python3 -m modules.correlation_analysis    # Correlation findings
-python3 -m modules.prediction_model        # Train + report metrics
-python3 -m modules.recommendation_engine   # Build recovery library
-```
+The dataset is **synthetic**, produced by `scripts/generate_grade_change_data.py`. It simulates a Honeywell QCS / MD-control style paper machine across 119 grade-change events, with deliberately embedded, discoverable relationships — for example a steam-pressure lag driving moisture, which in turn drives basis weight. The generator is seeded, so output is reproducible.
 
 ---
 

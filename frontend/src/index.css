@@ -1,0 +1,148 @@
+/* Fonts are bundled, not fetched: a control-room demo has to render correctly
+   with no outbound network. IBM Plex Sans for prose and labels, IBM Plex Mono
+   for every process value. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/ibm-plex-mono/700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-hmi-void font-sans text-body text-hmi-text antialiased;
+  }
+
+  /* Tabular figures on every monospaced readout: digits must not shift width
+     as the simulation clock advances. */
+  .font-mono,
+  code {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-signal/25;
+  }
+
+  /* Square focus ring, matching the console's hard-edged geometry. */
+  :focus-visible {
+    @apply outline-none ring-1 ring-signal ring-offset-2 ring-offset-hmi-void;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-hmi-inset;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply border-2 border-solid border-hmi-inset bg-hmi-bezel;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-hmi-dim;
+  }
+}
+
+@layer components {
+  /* ── Console background ────────────────────────────────────────────────────
+     Faint schematic grid behind the whole screen. Low enough contrast that it
+     never competes with a trend pen, present enough to read as drafting paper
+     rather than a flat web page. */
+  .hmi-grid {
+    background-color: #0a0e14;
+    background-image: linear-gradient(to right, rgba(45, 212, 191, 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(45, 212, 191, 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Recessed graph-paper well used behind trend charts: minor 8px divisions
+     with a stronger line every 40px, like a strip-chart recorder's paper. */
+  .hmi-trend-paper {
+    background-color: #0d1218;
+    background-image: linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+      linear-gradient(to right, rgba(148, 163, 184, 0.09) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+    background-size:
+      8px 8px,
+      8px 8px,
+      40px 40px,
+      40px 40px;
+  }
+
+  /* ── Transport slider ──────────────────────────────────────────────────────
+     Styled by hand because the native control cannot be reached with utility
+     classes. Square thumb, hard-edged track: a recorder's carriage, not a
+     rounded web slider. */
+  .hmi-slider {
+    @apply h-6 w-full cursor-ew-resize appearance-none bg-transparent;
+  }
+
+  .hmi-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    background: linear-gradient(
+      to right,
+      #2dd4bf 0%,
+      #2dd4bf var(--hmi-slider-fill, 0%),
+      #1f2937 var(--hmi-slider-fill, 0%),
+      #1f2937 100%
+    );
+    border: 1px solid #2b3644;
+  }
+
+  .hmi-slider::-moz-range-track {
+    height: 6px;
+    background: linear-gradient(
+      to right,
+      #2dd4bf 0%,
+      #2dd4bf var(--hmi-slider-fill, 0%),
+      #1f2937 var(--hmi-slider-fill, 0%),
+      #1f2937 100%
+    );
+    border: 1px solid #2b3644;
+  }
+
+  .hmi-slider::-webkit-slider-thumb {
+    @apply h-5 w-2.5 appearance-none border border-hmi-void bg-signal;
+    margin-top: -7px;
+    border-radius: 0;
+  }
+
+  .hmi-slider::-moz-range-thumb {
+    @apply h-5 w-2.5 border border-hmi-void bg-signal;
+    border-radius: 0;
+  }
+
+  .hmi-slider:active::-webkit-slider-thumb {
+    @apply bg-signal-bright;
+  }
+
+  /* Alarm banner uses reverse contrast: dark console text on a solid alarm
+     fill, the way an annunciator tile is printed. */
+  .hmi-reverse {
+    color: #0a0e14;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
