@@ -9,7 +9,7 @@ import {
   useTimeline,
 } from '../lib/queries';
 import { fixed, signed } from '../lib/format';
-import { alarmStyle, eventTag, tagFor } from '../lib/hmi';
+import { PEN, alarmStyle, eventTag, limitStatus, tagFor } from '../lib/hmi';
 import { DEFAULT_SIM_TIME, SIM_TIME_STEP, useAppStore } from '../store/useAppStore';
 import { Panel, ScreenHeader, Section } from '../components/ui/Panel';
 import { Faceplate } from '../components/ui/Faceplate';
@@ -27,7 +27,7 @@ import {
   CorrelatedProjectionTrend,
   DeviationProjectionTrend,
 } from '../components/charts/ProjectionCharts';
-import { TimeSlider } from '../components/monitor/TimeSlider';
+import { TimeSlider, type TransportReadout } from '../components/monitor/TimeSlider';
 import { AlarmBanner } from '../components/monitor/AlarmBanner';
 import { RecommendationsPanel } from '../components/monitor/RecommendationsPanel';
 import type { RecipeLimitVariable } from '../lib/types';
@@ -77,6 +77,23 @@ export function LiveMonitorPage() {
     );
   }, [timeline.data, simTime]);
 
+  // Key tag values at the current carriage position, shown on the transport.
+  const transportReadouts = useMemo<TransportReadout[]>(() => {
+    const latest = elapsedSamples.at(-1);
+    if (!latest) return [];
+    return [
+      { tag: 'BW.PV', value: fixed(latest.basis_weight_gsm, 1), unit: 'gsm', color: PEN.bw },
+      {
+        tag: 'BW.DEV',
+        value: fixed(latest.basis_weight_deviation_pct),
+        unit: '%',
+        color: PEN.deviation,
+      },
+      { tag: 'ST.PV', value: fixed(latest.steam_pressure, 1), unit: 'kPa', color: PEN.steam },
+      { tag: 'MOI.PV', value: fixed(latest.moisture_pct), unit: '%', color: PEN.moisture },
+    ];
+  }, [elapsedSamples]);
+
   const settling = draft !== simTime;
   const refreshing =
     prediction.isFetching || projection.isFetching || recommendations.isFetching;
@@ -101,7 +118,7 @@ export function LiveMonitorPage() {
         <Header eventId={eventId} />
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-16 w-full" />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SkeletonPanel lines={2} label="Faceplate" />
           <SkeletonPanel lines={2} label="Faceplate" />
           <SkeletonPanel lines={2} label="Faceplate" />
@@ -147,6 +164,7 @@ export function LiveMonitorPage() {
         step={SIM_TIME_STEP}
         onChange={setDraft}
         settling={settling}
+        readouts={transportReadouts}
       />
 
       {/* ── Prediction narrative ── */}
@@ -169,7 +187,7 @@ export function LiveMonitorPage() {
         tag="PV.GROUP"
         description={
           recipeLimits.data?.annotated
-            ? 'Each faceplate shows the measured value with its position inside the grade recipe range. The red tick marks the nearest operating limit.'
+            ? 'Needle position shows where the reading sits inside the grade recipe range. Digits and status are coloured by severity: white in range, amber drifting or near a limit, red outside the range by more than its own width.'
             : undefined
         }
       >
@@ -180,39 +198,39 @@ export function LiveMonitorPage() {
             onRetry={() => void recipeLimits.refetch()}
           />
         ) : !recipeLimits.data ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SkeletonPanel lines={2} label="Faceplate" />
             <SkeletonPanel lines={2} label="Faceplate" />
             <SkeletonPanel lines={2} label="Faceplate" />
             <SkeletonPanel lines={2} label="Faceplate" />
           </div>
         ) : (
-          <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {recipeLimits.data.variables.map((variable) => (
-              <Faceplate
-                key={variable.variable}
-                label={variable.label}
-                tag={tagFor(variable.variable)}
-                value={fixed(variable.current_value)}
-                unit={variable.unit}
-                tone={variable.within_limits === false ? 'warn' : 'neutral'}
-                range={
-                  variable.current_value === null
-                    ? undefined
-                    : {
-                        min: variable.min,
-                        max: variable.max,
-                        current: variable.current_value,
-                        limit: variable.current_value > variable.max ? variable.max : variable.min,
-                      }
-                }
-                detail={
-                  variable.within_limits === false
-                    ? `OUT OF RANGE ${signed(variable.violation)}`
-                    : 'IN RANGE'
-                }
-              />
-            ))}
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {recipeLimits.data.variables.map((variable) => {
+              // One severity grade per reading, driving the digits, the needle
+              // and the status line together.
+              const status = limitStatus(variable);
+              return (
+                <Faceplate
+                  key={variable.variable}
+                  label={variable.label}
+                  tag={tagFor(variable.variable)}
+                  value={fixed(variable.current_value)}
+                  unit={variable.unit}
+                  tone={status.tone}
+                  status={status}
+                  range={
+                    variable.current_value === null
+                      ? undefined
+                      : {
+                          min: variable.min,
+                          max: variable.max,
+                          current: variable.current_value,
+                        }
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </Section>
@@ -223,13 +241,13 @@ export function LiveMonitorPage() {
         tag="TREND.GROUP"
         description={`Measured data to T+${simTime}s of a ${maxTime}s transition. The pen nib marks the present sample.`}
       >
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           <BasisWeightTrend samples={elapsedSamples} threshold={threshold} />
           <DeviationTrend samples={elapsedSamples} threshold={threshold} />
         </div>
 
         <Collapsible title="Secondary process variables" tag="TREND / AUX">
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <SteamMoistureTrend samples={elapsedSamples} />
             <StockSpeedTrend samples={elapsedSamples} />
           </div>
@@ -249,7 +267,7 @@ export function LiveMonitorPage() {
             onRetry={() => void projection.refetch()}
           />
         ) : !projection.data ? (
-          <div className="grid gap-3 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <SkeletonPanel lines={6} label="Trend" />
             <SkeletonPanel lines={6} label="Trend" />
           </div>
@@ -257,13 +275,13 @@ export function LiveMonitorPage() {
           <Notice tag="NO DATA">{projection.data.message}</Notice>
         ) : (
           <>
-            <div className="grid gap-3 xl:grid-cols-2">
+            <div className="grid gap-4 xl:grid-cols-2">
               <DeviationProjectionTrend projection={projection.data} />
               <CorrelatedProjectionTrend projection={projection.data} />
             </div>
 
             {projection.data.rates && (
-              <div className="grid items-stretch gap-3 sm:grid-cols-3">
+              <div className="grid items-stretch gap-4 sm:grid-cols-3">
                 <Faceplate
                   label="Deviation rate / 60s"
                   tag="BW.ROC"

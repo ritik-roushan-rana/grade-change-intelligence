@@ -88,8 +88,85 @@ export const TONE_FILL: Record<Tone, string> = {
   good: 'bg-alarm-normal',
   warn: 'bg-alarm-high',
   bad: 'bg-alarm-critical',
-  neutral: 'bg-pen-blue',
+  neutral: 'bg-hmi-text',
 };
+
+/** Border colour, for needles and outline marks that must read on dark. */
+export const TONE_BORDER: Record<Tone, string> = {
+  good: 'border-alarm-normal',
+  warn: 'border-alarm-high',
+  bad: 'border-alarm-critical',
+  neutral: 'border-hmi-text',
+};
+
+/** Field names match the API's recipe-limit payload so no mapping is needed. */
+export interface LimitReading {
+  min: number;
+  max: number;
+  current_value: number | null;
+  within_limits: boolean | null;
+  violation: number | null;
+}
+
+export interface LimitStatus {
+  tone: Tone;
+  /** Scannable status text, e.g. `OUT OF RANGE +2.26`. */
+  text: string;
+  /** Glyph matched to severity: dot for normal, triangle for a deviation. */
+  icon: string;
+}
+
+/**
+ * Grade a reading against its recipe range.
+ *
+ * Severity is measured in units of the range's own width, not absolute value,
+ * because the ranges differ by orders of magnitude — caliper spans 1.76 µm while
+ * steam pressure spans 24 kPa, so a raw violation of 2.0 means very different
+ * things. A reading outside its range by more than the full width of that range
+ * is treated as critical; anything less is a caution. That keeps red rare enough
+ * to still mean something: on a bad transition it fires for the two genuinely
+ * broken variables rather than for all five that are merely out.
+ */
+export function limitStatus(reading: LimitReading): LimitStatus {
+  const { min, max, current_value: current, within_limits: within, violation } = reading;
+
+  if (current === null || within === null) {
+    return { tone: 'neutral', text: 'NO DATA', icon: '·' };
+  }
+
+  const span = Math.abs(max - min) || 1;
+
+  if (within) {
+    // Inside the range, but close enough to an edge to be worth flagging.
+    const margin = Math.min(current - min, max - current);
+    if (margin / span < 0.05) {
+      return { tone: 'warn', text: 'NEAR LIMIT', icon: '▲' };
+    }
+    return { tone: 'good', text: 'IN RANGE', icon: '●' };
+  }
+
+  const excess = Math.abs(violation ?? 0);
+  const signedExcess = `${(violation ?? 0) > 0 ? '+' : '−'}${excess.toFixed(2)}`;
+  const tone: Tone = excess > span ? 'bad' : 'warn';
+  return { tone, text: `OUT OF RANGE ${signedExcess}`, icon: '▲' };
+}
+
+/**
+ * Where a reading sits inside its range, as a percentage of track width, and
+ * whether it fell off either end.
+ *
+ * The marker is clamped to the track edge when the value is outside, with the
+ * overflow reported separately so the caller can print an indicator instead of
+ * letting the needle silently disappear.
+ */
+export function rangePosition(min: number, max: number, current: number) {
+  const span = max - min || 1;
+  const ratio = (current - min) / span;
+  return {
+    percent: Math.max(0, Math.min(1, ratio)) * 100,
+    overflow: ratio < 0 ? ('low' as const) : ratio > 1 ? ('high' as const) : null,
+  };
+}
 
 /**
  * Recorder pens. One fixed colour per instrument, so a given tag is the same

@@ -40,7 +40,7 @@ export function RecommendationCard({
     <article className="flex h-full flex-col rounded-panel border border-hmi-line bg-hmi-panel">
       {/* Header: instruction sequence, tag, and the pen colour of the variable
           it moves, so the ticket ties visually to the trend above. */}
-      <header className="flex items-center gap-2 border-b border-hmi-line bg-hmi-header px-3 py-1.5">
+      <header className="flex items-center gap-2 border-b border-hmi-line bg-hmi-header px-4 py-2">
         <span
           className="h-3 w-1 shrink-0"
           style={{ backgroundColor: pen }}
@@ -55,7 +55,7 @@ export function RecommendationCard({
         <span className="shrink-0 font-mono text-micro text-hmi-dim">{tag}</span>
       </header>
 
-      <div className="flex flex-1 flex-col p-3">
+      <div className="flex flex-1 flex-col p-5">
         {/* Before / after faceplate pair. */}
         <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
           <ValueCell label="Current" value={fixed(recommendation.current_value)} />
@@ -112,7 +112,7 @@ export function RecommendationCard({
         {decision ? (
           <p
             className={clsx(
-              'hmi-reverse flex items-center gap-2 px-3 py-2 font-mono text-micro uppercase',
+              'hmi-reverse flex items-center gap-2 px-4 py-2.5 font-mono text-micro uppercase',
               decision === 'accept' ? 'bg-alarm-normal' : 'bg-hmi-bezel !text-hmi-text',
             )}
           >
@@ -125,7 +125,7 @@ export function RecommendationCard({
               type="button"
               disabled={pending}
               onClick={() => onDecide('accept')}
-              className="hmi-reverse bg-signal px-3 py-2 font-mono text-micro font-semibold uppercase transition-colors hover:bg-signal-bright disabled:cursor-wait disabled:opacity-60"
+              className="hmi-reverse bg-signal px-4 py-2.5 font-mono text-micro font-semibold uppercase transition-colors hover:bg-signal-bright disabled:cursor-wait disabled:opacity-60"
             >
               ✓ Acknowledge
             </button>
@@ -133,14 +133,14 @@ export function RecommendationCard({
               type="button"
               disabled={pending}
               onClick={() => onDecide('reject')}
-              className="bg-hmi-header px-3 py-2 font-mono text-micro font-semibold uppercase text-hmi-label transition-colors hover:bg-alarm-critical-fill hover:text-alarm-critical disabled:cursor-wait disabled:opacity-60"
+              className="bg-hmi-header px-4 py-2.5 font-mono text-micro font-semibold uppercase text-hmi-label transition-colors hover:bg-alarm-critical-fill hover:text-alarm-critical disabled:cursor-wait disabled:opacity-60"
             >
               ✗ Reject
             </button>
           </div>
         )}
         {error && (
-          <p className="border-t border-hmi-line px-3 py-2 font-mono text-micro text-alarm-critical">
+          <p className="border-t border-hmi-line px-4 py-2 font-mono text-micro text-alarm-critical">
             {error}
           </p>
         )}

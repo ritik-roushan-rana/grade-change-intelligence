@@ -149,7 +149,7 @@ export function HistoricalEventsPage() {
 
       <Section title="Event Detail" tag={eventTag(selectedEventId)}>
         {selected && (
-          <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Faceplate
               label="Max deviation"
               tag="BW.DEV.MAX"
@@ -192,7 +192,7 @@ export function HistoricalEventsPage() {
           <>
             <BasisWeightTrend samples={transitionSamples} threshold={threshold} height={300} />
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               {DETAIL_TAGS.map((variable) => (
                 <MiniTrend
                   key={variable.key}
@@ -260,7 +260,7 @@ export function HistoricalEventsPage() {
                 {optimal.data.setpoints.map((setpoint) => (
                   <div
                     key={setpoint.variable}
-                    className="flex items-baseline justify-between gap-4 px-3 py-2"
+                    className="flex items-baseline justify-between gap-4 px-4 py-2"
                   >
                     <dt className="flex items-baseline gap-2">
                       <span className="font-mono text-micro text-hmi-dim">

@@ -32,7 +32,7 @@ export function AlarmBanner({ prediction, grade, elapsedSec, totalSec }: AlarmBa
     >
       <div className="hmi-reverse flex flex-wrap items-stretch divide-x divide-black/25">
         {/* Annunciator tile: the state itself. */}
-        <div className="flex min-w-[13rem] flex-col justify-center px-4 py-3">
+        <div className="flex min-w-[13rem] flex-col justify-center px-5 py-4">
           <span className="font-mono text-micro uppercase opacity-70">Alarm state</span>
           <span className="font-mono text-banner">{alarm.label}</span>
         </div>
@@ -69,7 +69,7 @@ export function AlarmBanner({ prediction, grade, elapsedSec, totalSec }: AlarmBa
         />
 
         {/* Right-hand identification block, as on a real console header. */}
-        <div className="ml-auto flex flex-col justify-center px-4 py-3 text-right">
+        <div className="ml-auto flex flex-col justify-center px-5 py-4 text-right">
           <span className="font-mono text-micro uppercase opacity-70">
             {eventTag(prediction.event_id)} · {grade}
           </span>
@@ -96,7 +96,7 @@ function Field({
   return (
     <div
       className={clsx(
-        'flex flex-col justify-center px-4 py-3',
+        'flex flex-col justify-center px-5 py-4',
         wide ? 'min-w-[10rem]' : 'min-w-[7.5rem]',
       )}
     >

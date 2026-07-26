@@ -4,20 +4,15 @@ import { useEvents, useModelInfo } from '../../lib/queries';
 import { DEMO_PRESETS, useAppStore } from '../../store/useAppStore';
 import { fixed, percent, seconds } from '../../lib/format';
 import { eventTag } from '../../lib/hmi';
+import { DISPLAYS } from '../../lib/displays';
 import { Skeleton } from '../ui/States';
-
-/** Display directory, numbered the way console screens are. */
-const DISPLAYS = [
-  { to: '/', code: 'DISP-01', label: 'Live Monitor' },
-  { to: '/correlations', code: 'DISP-02', label: 'Correlations' },
-  { to: '/events', code: 'DISP-03', label: 'Event History' },
-  { to: '/feedback', code: 'DISP-04', label: 'Feedback Log' },
-] as const;
 
 /**
  * Console navigation rail. Hairline-divided blocks, uppercase labels, every
- * value monospaced — the left-hand column of an operator station rather than a
- * web sidebar.
+ * value monospaced.
+ *
+ * System branding lives in the global header now, so this starts with the
+ * machine identification and gets straight to the display directory.
  */
 export function Sidebar() {
   const { data, isPending, isError } = useEvents();
@@ -30,41 +25,39 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full w-full flex-col overflow-y-auto border-r border-hmi-bezel bg-hmi-panel lg:w-[268px] lg:shrink-0">
-      {/* Station identification. */}
-      <div className="border-b border-hmi-bezel bg-hmi-header px-4 py-3">
-        <p className="font-mono text-micro uppercase text-signal">Honeywell QCS</p>
-        <h1 className="mt-1 text-panel uppercase leading-tight text-hmi-text">
-          Grade Change
-          <br />
-          Intelligence
-        </h1>
-        <p className="mt-1.5 font-mono text-micro text-hmi-dim">PM-01 · MD CONTROL</p>
+      {/* Machine identification. */}
+      <div className="flex items-baseline justify-between gap-2 border-b border-hmi-line px-4 py-3">
+        <span className="text-tag uppercase text-hmi-label">Machine</span>
+        <span className="font-mono text-caption text-hmi-text">PM-01 · MD</span>
       </div>
 
       {/* Display directory. */}
-      <nav aria-label="Displays" className="border-b border-hmi-line">
+      <nav aria-label="Displays" className="border-b border-hmi-line py-1">
         {DISPLAYS.map((display) => (
           <NavLink
-            key={display.to}
-            to={display.to}
-            end={display.to === '/'}
+            key={display.path}
+            to={display.path}
+            end={display.path === '/'}
             className={({ isActive }) =>
               clsx(
-                'flex items-baseline gap-2 border-l-2 px-4 py-2 transition-colors',
+                'flex flex-col border-l-2 px-4 py-2 transition-colors',
                 isActive
                   ? 'border-l-signal bg-signal-fill text-hmi-text'
                   : 'border-l-transparent text-hmi-label hover:bg-hmi-header hover:text-hmi-text',
               )
             }
           >
-            <span className="font-mono text-micro text-hmi-dim">{display.code}</span>
-            <span className="text-caption uppercase tracking-wide">{display.label}</span>
+            <span className="flex items-baseline gap-2">
+              <span className="font-mono text-micro text-hmi-dim">{display.code}</span>
+              <span className="text-caption uppercase tracking-wide">{display.name}</span>
+            </span>
+            <span className="pl-[3.4rem] text-micro text-hmi-dim">{display.hint}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* Scenario presets. */}
-      <div className="border-b border-hmi-line px-4 py-3">
+      <div className="border-b border-hmi-line px-4 py-4">
         <p className="text-tag uppercase text-hmi-label">Scenario presets</p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {(['moderate', 'extreme'] as const).map((key) => {
@@ -94,7 +87,7 @@ export function Sidebar() {
       </div>
 
       {/* Event selection + summary. */}
-      <div className="border-b border-hmi-line px-4 py-3">
+      <div className="border-b border-hmi-line px-4 py-4">
         <label htmlFor="event-select" className="block text-tag uppercase text-hmi-label">
           Grade change event
         </label>
@@ -128,7 +121,7 @@ export function Sidebar() {
       </div>
 
       {/* Model provenance. */}
-      <div className="mt-auto px-4 py-3">
+      <div className="mt-auto px-4 py-4">
         <p className="text-tag uppercase text-hmi-label">Model · held-out test</p>
         {modelInfo ? (
           <dl className="mt-2 space-y-1">

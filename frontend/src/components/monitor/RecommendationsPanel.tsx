@@ -76,7 +76,7 @@ export function RecommendationsPanel({
   if (isPending || !data) {
     return (
       <Section title="Corrective Actions" tag={SECTION_TAG}>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <SkeletonPanel lines={5} label="Action" />
           <SkeletonPanel lines={5} label="Action" />
           <SkeletonPanel lines={5} label="Action" />
@@ -99,11 +99,11 @@ export function RecommendationsPanel({
     return (
       <Section title="Corrective Actions" tag={SECTION_TAG}>
         <div className="rounded-panel border border-alarm-normal/50 bg-hmi-panel">
-          <header className="flex items-center justify-between border-b border-alarm-normal/40 bg-alarm-normal-fill px-3 py-1.5">
+          <header className="flex items-center justify-between border-b border-alarm-normal/40 bg-alarm-normal-fill px-4 py-2">
             <span className="text-tag uppercase text-alarm-normal">No action required</span>
             <span className="font-mono text-micro text-alarm-normal/80">HOLD</span>
           </header>
-          <p className="px-4 py-3 text-body text-hmi-text">{data.message}</p>
+          <p className="p-5 text-body text-hmi-text">{data.message}</p>
         </div>
       </Section>
     );
@@ -131,7 +131,7 @@ export function RecommendationsPanel({
           </p>
         </Panel>
       ) : (
-        <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
           {data.recommendations.map((recommendation, index) => (
             <RecommendationCard
               key={recommendation.id}
