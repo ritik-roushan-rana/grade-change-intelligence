@@ -168,6 +168,71 @@ The interface is modelled on a DCS operator console (Honeywell Experion / TDC st
 
 ---
 
+## Deployment
+
+For a hosted demo the app runs as **one service**: FastAPI serves the API *and* the compiled React bundle, so there is a single URL, no CORS configuration, and no separate static host. The API detects `frontend/dist` at startup and mounts it; unknown paths return `index.html` so client-side routes like `/correlations` survive a cold link.
+
+### Container
+
+Every push to `main` builds the image, starts it, probes every endpoint plus the
+four client-side routes, asserts the held-out metrics still read 94.5% / 88.1% /
+0.985 from inside the container, and only then publishes to GHCR. So a
+ready-to-run image already exists:
+
+```bash
+docker run -p 8000:8000 ghcr.io/ritik-roushan-rana/grade-change-intelligence:latest
+```
+
+Or build it yourself:
+
+```bash
+docker build -t grade-change-intelligence .
+docker run -p 8000:8000 grade-change-intelligence
+```
+
+Then open <http://localhost:8000>. The multi-stage build compiles the UI in a Node stage and copies the bundle into the Python stage alongside `modules/` and `data/`.
+
+Any host that runs a container will take this image as-is: Render, Fly.io,
+Railway, Cloud Run, an EC2 box with Docker. Point it at port 8000 (or set `PORT`)
+and give it a 512 MB instance.
+
+### Not Vercel
+
+Vercel cannot host this service. Its serverless functions are per-invocation, so
+the 25-60 s model warm-up would either run on every request or time out; there is
+no long-lived process to hold the trained models in memory. If the repository is
+connected to Vercel, either disconnect it or restrict it to the frontend only
+(`frontend/` as the root directory, with `VITE_API_BASE_URL` pointing at a
+container host running the API) — but the single-service image above is simpler
+and is what the health check, blueprint and CI are built around.
+
+### Render
+
+`render.yaml` is a ready blueprint — point Render at the repository and choose **New → Blueprint**. It sets `healthCheckPath: /api/health` and attaches a 1 GB disk mounted at `/var/data`, with `FEEDBACK_LOG_DIR` pointed into it so the operator feedback log survives redeploys.
+
+### What to expect when hosting
+
+| | |
+|---|---|
+| Cold start | **~25 s on a fast CPU, up to ~60 s on a shared runner** (measured 59 s on a GitHub Actions runner). Models train at startup, not per request. The socket opens only when the service is genuinely ready, so a passing health check means it can serve traffic — but give the host a generous initial health-check grace period. |
+| Memory | **~190 MB** in the container once warm (~80 MB for the API process alone). A 512 MB instance is enough; 256 MB is not. |
+| Workers | **One.** Each worker would train its own copy of the models — triple the memory and startup for no gain at demo concurrency. |
+| Feedback log | The only runtime write. On a host with an ephemeral filesystem it resets on redeploy; mount a volume and set `FEEDBACK_LOG_DIR` to keep it. |
+| Sleeping instances | Free tiers that idle out pay the ~25 s warm-up again on the next request. For a live demo, use a plan that stays awake. |
+| Auth | **There is none.** Every endpoint, including `POST /api/feedback`, is open. That is fine for a private demo URL; put it behind access control before exposing it anywhere real. |
+
+### Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `PORT` | Port to bind. Defaults to 8000; hosts that inject it are honoured. |
+| `FEEDBACK_LOG_DIR` | Where `feedback_log.csv` lives. Point at a mounted volume to persist it. |
+| `FRONTEND_DIST` | Override the location of the built UI. Unset it to run API-only. |
+| `CORS_ORIGINS` | Comma-separated allowed origins. Only needed if the UI is hosted separately. |
+| `VITE_API_BASE_URL` | Build-time only. Leave empty for the single-service setup so the bundle calls a relative `/api`. |
+
+---
+
 ## Original Streamlit dashboard
 
 `app.py` is untouched and still runs, which makes it easy to compare the two front ends side by side:
