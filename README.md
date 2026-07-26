@@ -151,7 +151,6 @@ grade-change-intelligence/
 │       └── pages/                      # One file per view
 ├── Dockerfile                          # Multi-stage build: UI bundle + API in one image
 ├── render.yaml                         # Render blueprint (health check + feedback disk)
-├── .github/workflows/container.yml     # Build, smoke-test, publish, re-verify the image
 ├── scripts/smoke_test.sh               # Verify any running deployment
 ├── modules/                            # Unchanged, validated model code
 │   ├── correlation_analysis.py
@@ -186,20 +185,19 @@ For a hosted demo the app runs as **one service**: FastAPI serves the API *and* 
 
 ### Container
 
-Every push to `main` builds the image, starts it, probes every endpoint plus the
-five client-side routes, asserts the held-out metrics still read 94.5% / 88.1% /
-0.985 from inside the container, and only then publishes to GHCR. So a
-ready-to-run image already exists:
-
-```bash
-docker run -p 8000:8000 ghcr.io/ritik-roushan-rana/grade-change-intelligence:latest
-```
-
-Or build it yourself:
+Build the image yourself — the `Dockerfile` compiles the UI and packages it with
+the API in one artifact:
 
 ```bash
 docker build -t grade-change-intelligence .
 docker run -p 8000:8000 grade-change-intelligence
+```
+
+An image published earlier still exists in GHCR and runs as-is, but nothing
+rebuilds it now, so treat it as a snapshot rather than the current code:
+
+```bash
+docker run -p 8000:8000 ghcr.io/ritik-roushan-rana/grade-change-intelligence:latest
 ```
 
 Then open <http://localhost:8000>. The multi-stage build compiles the UI in a Node stage and copies the bundle into the Python stage alongside `modules/` and `data/`.
@@ -226,24 +224,26 @@ inside the deployed artifact, all five client-side routes return the app shell,
 an unknown `/api` path still returns JSON 404, and the hashed bundle referenced
 by `index.html` is actually served. Non-zero exit on the first failure.
 
-CI runs this same script twice: once against the freshly built image, and again
-after publishing, against the image pulled back down from the registry.
+Run it against the container before you hand a URL to anyone — there is no CI
+pipeline doing that check for you.
 
 ### Render — the deployment target
 
 Two ways in, both landing on the same single service.
 
-**From the published image** (nothing to build):
+**From `render.yaml`** (Blueprint, and the one to prefer): point Render at the
+repository and choose **New → Blueprint**. It builds from the current code, sets
+`healthCheckPath: /api/health` and attaches a 1 GB disk at `/var/data`, with
+`FEEDBACK_LOG_DIR` pointing into it so the operator feedback log survives
+redeploys.
+
+**From the published image** (nothing to build, but it is a snapshot — no
+pipeline refreshes it):
 
 1. **New → Web Service → Existing image from a registry**
 2. Image URL: `ghcr.io/ritik-roushan-rana/grade-change-intelligence:latest`
 3. **Advanced → Health Check Path:** `/api/health`
 4. No environment variables and no start command — Render injects `PORT` and the image honours it.
-
-**From `render.yaml`** (Blueprint): point Render at the repository and choose
-**New → Blueprint**. It sets `healthCheckPath: /api/health` and attaches a 1 GB
-disk at `/var/data`, with `FEEDBACK_LOG_DIR` pointing into it so the operator
-feedback log survives redeploys.
 
 Instance sizing: the models train at startup, so CPU decides how long that takes.
 **Free** (0.1 CPU) works but boots slowly and spins down after inactivity, so the
