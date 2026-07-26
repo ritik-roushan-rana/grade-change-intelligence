@@ -217,15 +217,39 @@ by `index.html` is actually served. Non-zero exit on the first failure.
 CI runs this same script twice: once against the freshly built image, and again
 after publishing, against the image pulled back down from the registry.
 
-### Not Vercel
+### Vercel — frontend only, API elsewhere
 
-Vercel cannot host this service. Its serverless functions are per-invocation, so
-the 25-60 s model warm-up would either run on every request or time out; there is
-no long-lived process to hold the trained models in memory. If the repository is
-connected to Vercel, either disconnect it or restrict it to the frontend only
-(`frontend/` as the root directory, with `VITE_API_BASE_URL` pointing at a
-container host running the API) — but the single-service image above is simpler
-and is what the health check, blueprint and CI are built around.
+**Vercel cannot host the API.** Two independent blockers:
+
+- **Size.** scipy, pandas, scikit-learn and numpy total ~253 MB installed, against
+  Vercel's 250 MB unzipped serverless function limit — exceeded before any
+  project code is added.
+- **Lifecycle.** Functions are per-invocation. There is no long-lived process to
+  hold the trained models, so the 25-60 s warm-up would run on every cold
+  invocation or time out.
+
+A Vercel deployment therefore serves the UI while every `/api/*` call returns
+404. `vercel.json` in this repository builds the frontend and adds the SPA
+fallback so client-side routes like `/correlations` resolve, but the UI still
+needs an API to talk to.
+
+To run split hosting, deploy the API as a container (see above) and then wire the
+two together:
+
+| Where | Setting | Value |
+|---|---|---|
+| Vercel project → Environment Variables | `VITE_API_BASE_URL` | `https://your-api-host.example.com` |
+| API host | `CORS_ORIGINS` | `https://your-project.vercel.app` |
+
+Both are already supported in code; no changes are needed. Redeploy Vercel after
+setting the variable — it is read at build time, not at runtime.
+
+Also check **Settings → Deployment Protection** on the Vercel project. Vercel
+Authentication is on by default for some accounts, which makes preview and
+production URLs redirect to a Vercel SSO login instead of serving the app.
+
+The single-service container remains the simpler option: one URL, no CORS, no
+split env wiring, and it is what the health check, blueprint and CI verify.
 
 ### Render
 
