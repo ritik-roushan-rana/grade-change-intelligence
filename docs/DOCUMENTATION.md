@@ -69,7 +69,7 @@ The system watches an in-progress grade change, flags rising risk of exceeding t
 │                                    │                                            │
 │                                    ▼                                            │
 │  ┌─────────────────────────────────────────────────────────────────────┐        │
-│  │                     STREAMLIT DASHBOARD (app.py)                     │        │
+│  │               FASTAPI (REST) + REACT OPERATOR CONSOLE                │        │
 │  │                                                                     │        │
 │  │  Page 1: Live Transition Monitor                                    │        │
 │  │  • Time slider simulates in-progress grade change                   │        │
@@ -195,9 +195,13 @@ Dashboard
 - **Time-lagged cross-correlation**: For delayed effects (steam → moisture)
 - **Per-event aggregation**: Variability metrics to find volatility-outcome links
 
-### 4. Dashboard: Streamlit
-- **Why**: Fastest path to a functional, interactive web app for a hackathon
-- **Trade-off**: Single-threaded, not production-grade — but fully demoable
+### 4. Interface: FastAPI + React (TypeScript)
+- **Why**: Keeps every model decision in Python behind a REST boundary, while the
+  UI is free to look like a DCS operator console rather than a web dashboard
+- **Trade-off**: Two processes in development (API + Vite) instead of one; solved
+  in deployment by having FastAPI serve the compiled bundle as a single service
+- **Constraint honoured**: no prediction, scoring, projection or recommendation
+  logic is reimplemented in TypeScript
 
 ---
 
@@ -217,18 +221,27 @@ Dashboard
 ## How to Run
 
 ### Prerequisites
+Python 3.12+ and Node.js 20+.
+
+### Backend (start first, port 8000)
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+cd backend && uvicorn main:app --port 8000
 ```
 
-### Launch Dashboard
+### Frontend (port 5173)
 ```bash
-streamlit run app.py
-# or
-./run_dashboard.sh
+cd frontend && npm install && npm run dev
 ```
 
-Then open **http://localhost:8501** in your browser.
+Then open **http://localhost:5173** in your browser.
+
+### Or one container (single URL, port 8000)
+```bash
+docker build -t grade-change-intelligence .
+docker run -p 8000:8000 grade-change-intelligence
+```
 
 ### Run Individual Modules (for testing)
 ```bash
@@ -242,21 +255,33 @@ python3 -m modules.recommendation_engine
 ## Project Structure
 
 ```
-dataset/
-├── app.py                          # Streamlit dashboard (main entry point)
-├── requirements.txt                # Python dependencies
-├── run_dashboard.sh                # Launch script
-├── DOCUMENTATION.md                # This file
-├── grade_change_timeseries.csv     # Raw timeseries data (~50K rows)
-├── grade_change_event_summary.csv  # Event-level summary (119 events)
-├── generate_grade_change_data.py   # Data generator (for regeneration)
+grade-change-intelligence/
+├── README.md                       # Project overview & quickstart
+├── Dockerfile                      # UI bundle + API in one image
+├── backend/
+│   ├── main.py                     # Entry point (uvicorn main:app)
+│   ├── requirements.txt            # Web layer + pinned ML stack
+│   └── gci_api/                    # App factory, routes, services, serialization
+├── frontend/
+│   ├── package.json                # UI dependencies
+│   └── src/                        # lib/ store/ components/ pages/
 ├── modules/
 │   ├── __init__.py
 │   ├── correlation_analysis.py     # Correlation discovery module
 │   ├── prediction_model.py         # ML-based risk prediction
-│   └── recommendation_engine.py    # KNN recovery matching + feedback logging
+│   ├── recommendation_engine.py    # KNN recovery matching + feedback logging
+│   └── recipe_limits.py            # Grade recipe constraint tables
+├── data/
+│   ├── grade_change_timeseries.csv     # Raw timeseries data (~50K rows)
+│   └── grade_change_event_summary.csv  # Event-level summary (119 events)
+├── scripts/
+│   ├── generate_grade_change_data.py   # Data generator (for regeneration)
+│   └── evaluation_report.py            # Held-out metrics report
+├── docs/
+│   ├── ARCHITECTURE.md             # System design & data flow
+│   └── DOCUMENTATION.md            # This file
 └── feedback_logs/
-    └── feedback_log.csv            # User accept/reject decisions
+    └── feedback_log.csv            # User accept/reject decisions (runtime)
 ```
 
 ---
@@ -272,7 +297,7 @@ dataset/
 | Use recipe/historical limits | Training uses target values; grade-pair analysis uses recipe context |
 | Find new correlations | 6 discovered correlations including steam-moisture lag, grade-pair difficulty |
 | Accept/Reject logging | Feedback Logger writes every decision to CSV with full context |
-| Dashboard | 4-page Streamlit app with live monitor, correlations, history, feedback |
+| Dashboard | 5-display React console (live monitor, correlations, history, feedback, settings) over a FastAPI service |
 
 ---
 
