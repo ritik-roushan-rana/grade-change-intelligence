@@ -89,19 +89,22 @@ jobs:
             [ "$code" = "200" ] || exit 1
           done
 
+      # Asserted with grep rather than an inline script: the API already emits
+      # compact JSON, and keeping this step to shell avoids embedding a second
+      # language inside a YAML block scalar.
       - name: Verify held-out metrics are unchanged
         run: |
           set -euo pipefail
-          curl -fsS http://127.0.0.1:8000/api/model-info \
-            | python3 -c '
-import json,sys
-e=json.load(sys.stdin)["evaluation"]
-expected={"test_accuracy":0.945,"test_f1":0.881,"test_r2":0.985}
-for key,want in expected.items():
-    got=e[key]
-    print(f"  {key}: {got} (expected {want})")
-    assert got==want, f"{key} drifted: {got} != {want}"
-print("Metrics match the validated model.")'
+          info=$(curl -fsS http://127.0.0.1:8000/api/model-info)
+          for expected in '"test_accuracy":0.945' '"test_f1":0.881' '"test_r2":0.985'; do
+            echo "  checking ${expected}"
+            echo "$info" | grep -q "$expected" || {
+              echo "Metric drifted. Reported evaluation was:" >&2
+              echo "$info" >&2
+              exit 1
+            }
+          done
+          echo "Metrics match the validated model."
 
       - name: Probe served frontend
         run: |
