@@ -196,6 +196,27 @@ Any host that runs a container will take this image as-is: Render, Fly.io,
 Railway, Cloud Run, an EC2 box with Docker. Point it at port 8000 (or set `PORT`)
 and give it a 512 MB instance.
 
+### Verifying a deployment
+
+`scripts/smoke_test.sh` checks the things a "deploy succeeded" message can still
+get wrong. Point it at any running instance:
+
+```bash
+./scripts/smoke_test.sh                        # local, defaults to :8000
+./scripts/smoke_test.sh https://your-host.app  # a live deployment
+```
+
+It waits out the model warm-up, then asserts the service reports ready with all
+119 events loaded, every endpoint the UI calls answers 200 (including a scored
+prediction and its recommendations, so the classifier, regressor and KNN engine
+are all exercised), the held-out metrics still read 94.5% / 88.1% / 0.985 from
+inside the deployed artifact, the four client-side routes return the app shell,
+an unknown `/api` path still returns JSON 404, and the hashed bundle referenced
+by `index.html` is actually served. Non-zero exit on the first failure.
+
+CI runs this same script twice: once against the freshly built image, and again
+after publishing, against the image pulled back down from the registry.
+
 ### Not Vercel
 
 Vercel cannot host this service. Its serverless functions are per-invocation, so
