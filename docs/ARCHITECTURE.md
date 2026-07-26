@@ -22,7 +22,7 @@ flowchart LR
     end
 
     subgraph Module 4
-        F[Streamlit Dashboard<br/>app.py]
+        F[React UI via FastAPI<br/>backend/ + frontend/]
     end
 
     subgraph Feedback
@@ -68,7 +68,7 @@ flowchart LR
                                     │                                       │
                                     ▼                                       │
                     ┌───────────────────────────────┐                       │
-                    │   STREAMLIT DASHBOARD (app.py)│                       │
+                    │  FASTAPI  +  REACT UI         │                       │
                     │                               │                       │
                     │ • Live Monitor (risk, charts) │                       │
                     │ • Correlation Analysis        │                       │
@@ -161,42 +161,56 @@ flowchart LR
 
 ---
 
-### Module 4: Streamlit Dashboard (`app.py`)
+### Module 4: Operator Interface (`backend/` FastAPI + `frontend/` React)
 
-**What it does:** Interactive web interface that ties all modules together for live demonstration and operator use.
+**What it does:** Exposes the three model modules over a REST API and renders them
+as a DCS-style operator console. No prediction, scoring, projection or
+recommendation logic is reimplemented in TypeScript — the browser formats and
+draws what Python returns.
 
-**Pages:**
-1. **Live Monitor** — Event selector, time slider, risk gauge, BW/deviation charts, future-state projection (multi-variable), recommendation cards with Accept/Reject
-2. **Correlations** — All 6 findings with expandable detail, feature importance ranking, high-impact parameters section
-3. **Historical Events** — Scatter plot of all 119 events, per-event detail view, operator action log, optimal setpoints
+**Displays:**
+1. **Live Monitor** — Event selector, simulation time slider, risk level, current & projected deviation, BW/deviation strip charts, future-state projection, recipe-limit table, recommendation cards with Accept/Reject
+2. **Correlations** — All 6 findings with detail, feature importance ranking, high-impact parameters
+3. **Historical Events** — Scatter of all 119 events, per-event detail, operator action log, optimal setpoints
 4. **Feedback Log** — Decision history with acceptance rate statistics, CSV export
+5. **Settings** — Scoped resets for display cache, session decisions, API memoisation and the feedback log
 
-**Data flow within the dashboard:**
-1. User selects event + simulation time
-2. Dashboard slices timeseries data up to time t
-3. Calls `PredictionModel.predict_risk()` → renders risk cards + explanation
-4. Calls `RecommendationEngine.recommend()` → renders suggestion cards
-5. User clicks Accept/Reject → `FeedbackLogger.log_decision()` writes to CSV
+**Data flow per interaction:**
+1. Operator selects an event + simulation time in the browser
+2. React calls `GET /api/events/{id}/predict?t=` and `.../recommendations?t=`
+3. `services.py` slices the timeseries up to time `t` and calls `PredictionModel.predict_risk()` and `RecommendationEngine.recommend()` on the warm model objects
+4. JSON-safe results render as risk cards, explanation text and suggestion cards
+5. Accept/Reject posts to `POST /api/feedback` → `FeedbackLogger.log_decision()` writes to CSV
+
+Models train once at API startup (~25 s), so requests are served from warm
+objects rather than retraining per call.
 
 ---
 
 ## How to Run
 
 ### Prerequisites
-- Python 3.10+
-- pip packages: `pandas numpy scipy scikit-learn streamlit plotly`
+- Python 3.12+ and Node.js 20+
 
-### Installation
+### Backend (port 8000) — start first
 ```bash
-cd /path/to/grade-change-intelligence
-pip install -r requirements.txt
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r backend/requirements.txt
+cd backend && uvicorn main:app --port 8000
 ```
+Wait for `Models ready (...). 119 events, 344 recovery patterns.`
 
-### Launch
+### Frontend (port 5173)
 ```bash
-streamlit run app.py
+cd frontend && npm install && npm run dev
 ```
-Open http://localhost:8501 in your browser.
+Open http://localhost:5173 in your browser. Vite proxies `/api` to port 8000.
+
+### Or one container
+```bash
+docker build -t grade-change-intelligence . && docker run -p 8000:8000 grade-change-intelligence
+```
+Open http://localhost:8000 — FastAPI serves the API and the compiled UI together.
 
 ### Run Evaluation Report (optional)
 ```bash
@@ -250,10 +264,15 @@ The model genuinely generalizes to unseen grade-change events — it learned rea
 
 ```
 grade-change-intelligence/
-├── app.py                              # Streamlit dashboard (main entry point)
-├── requirements.txt                    # Python dependencies
-├── run_dashboard.sh                    # Convenience launch script
 ├── README.md                           # Project overview & quickstart
+├── Dockerfile                          # Multi-stage build: UI bundle + API in one image
+├── backend/                            # Module 4a: FastAPI wrapper (no model logic)
+│   ├── main.py                         # Entry point (uvicorn main:app)
+│   ├── requirements.txt                # Web layer + pinned ML stack
+│   └── gci_api/                        # App factory, routes, services, serialization
+├── frontend/                           # Module 4b: React + TypeScript + Vite console
+│   ├── package.json                    # UI dependencies
+│   └── src/                            # lib/ store/ components/ pages/
 ├── modules/
 │   ├── __init__.py
 │   ├── correlation_analysis.py         # Module 1: correlation discovery
@@ -269,5 +288,5 @@ grade-change-intelligence/
 ├── docs/
 │   ├── ARCHITECTURE.md                 # This document
 │   └── DOCUMENTATION.md                # Extended documentation
-└── feedback_logs/                      # Operator decision log (runtime, git-ignored)
+└── feedback_logs/                      # Operator decision log (created at runtime)
 ```
