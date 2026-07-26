@@ -242,27 +242,21 @@ python3 -m modules.recommendation_engine
 ## Project Structure
 
 ```
-grade-change-intelligence/
-├── app.py                              # Streamlit dashboard (main entry point)
-├── requirements.txt                    # Python dependencies
-├── run_dashboard.sh                    # Launch script
-├── README.md                           # Project overview & quickstart
+dataset/
+├── app.py                          # Streamlit dashboard (main entry point)
+├── requirements.txt                # Python dependencies
+├── run_dashboard.sh                # Launch script
+├── DOCUMENTATION.md                # This file
+├── grade_change_timeseries.csv     # Raw timeseries data (~50K rows)
+├── grade_change_event_summary.csv  # Event-level summary (119 events)
+├── generate_grade_change_data.py   # Data generator (for regeneration)
 ├── modules/
 │   ├── __init__.py
-│   ├── correlation_analysis.py         # Correlation discovery module
-│   ├── prediction_model.py             # ML-based risk prediction
-│   ├── recommendation_engine.py        # KNN recovery matching + feedback logging
-│   └── recipe_limits.py                # Grade recipe constraint tables
-├── data/
-│   ├── grade_change_timeseries.csv     # Raw timeseries data (~50K rows)
-│   └── grade_change_event_summary.csv  # Event-level summary (119 events)
-├── scripts/
-│   ├── generate_grade_change_data.py   # Data generator (for regeneration)
-│   └── evaluation_report.py            # Old vs new model metrics comparison
-├── docs/
-│   ├── ARCHITECTURE.md                 # System architecture
-│   └── DOCUMENTATION.md                # This file
-└── feedback_logs/                      # Accept/reject decision log (runtime, git-ignored)
+│   ├── correlation_analysis.py     # Correlation discovery module
+│   ├── prediction_model.py         # ML-based risk prediction
+│   └── recommendation_engine.py    # KNN recovery matching + feedback logging
+└── feedback_logs/
+    └── feedback_log.csv            # User accept/reject decisions
 ```
 
 ---
