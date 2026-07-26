@@ -99,8 +99,8 @@ export const useFeedback = () =>
   useQuery({
     queryKey: queryKeys.feedback,
     queryFn: api.feedback,
-    // The log is appended to by this app (and possibly the Streamlit one), so
-    // it is the one resource that is allowed to go stale.
+    // This app appends to the log at runtime, so it is the one resource that is
+    // allowed to go stale and be refetched.
     staleTime: 0,
   });
 

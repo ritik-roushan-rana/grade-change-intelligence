@@ -138,19 +138,20 @@ grade-change-intelligence/
 │       ├── store/                      # Zustand: selected event, sim time, decisions
 │       ├── components/{ui,charts,layout,monitor}/
 │       └── pages/                      # One file per view
-├── app.py                              # Original Streamlit dashboard (still runnable)
+├── Dockerfile                          # Multi-stage build: UI bundle + API in one image
+├── render.yaml                         # Render blueprint (health check + feedback disk)
+├── .github/workflows/container.yml     # Build, smoke-test, publish, re-verify the image
+├── scripts/smoke_test.sh               # Verify any running deployment
 ├── modules/                            # Unchanged, validated model code
 │   ├── correlation_analysis.py
 │   ├── prediction_model.py
 │   ├── recommendation_engine.py
 │   └── recipe_limits.py
 ├── data/                               # Process timeseries (~50K rows) + 119-event summary
-├── scripts/                            # Dataset generator, evaluation report
+├── scripts/                            # Dataset generator, evaluation report, smoke test
 ├── docs/                               # ARCHITECTURE.md, DOCUMENTATION.md
 └── feedback_logs/                      # Operator decision log (written at runtime)
 ```
-
-Both UIs read and write the same `feedback_logs/feedback_log.csv`, in the same format.
 
 ---
 
@@ -217,49 +218,39 @@ by `index.html` is actually served. Non-zero exit on the first failure.
 CI runs this same script twice: once against the freshly built image, and again
 after publishing, against the image pulled back down from the registry.
 
-### Vercel — frontend only, API elsewhere
+### Render — the deployment target
 
-**Vercel cannot host the API.** Two independent blockers:
+Two ways in, both landing on the same single service.
 
-- **Size.** scipy, pandas, scikit-learn and numpy total ~253 MB installed, against
-  Vercel's 250 MB unzipped serverless function limit — exceeded before any
-  project code is added.
-- **Lifecycle.** Functions are per-invocation. There is no long-lived process to
-  hold the trained models, so the 25-60 s warm-up would run on every cold
-  invocation or time out.
+**From the published image** (nothing to build):
 
-A Vercel deployment therefore serves the UI while every `/api/*` call returns
-404. `frontend/vercel.json` adds the SPA fallback so client-side routes like
-`/correlations` resolve on a cold link, but the UI still needs an API to talk to.
+1. **New → Web Service → Existing image from a registry**
+2. Image URL: `ghcr.io/ritik-roushan-rana/grade-change-intelligence:latest`
+3. **Advanced → Health Check Path:** `/api/health`
+4. No environment variables and no start command — Render injects `PORT` and the image honours it.
 
-That file lives in `frontend/`, not the repository root, because the Vercel
-project's **Root Directory** is `frontend` — paths in `vercel.json` resolve
-relative to the Root Directory, so a root-level config with `cd frontend` and
-`frontend/dist` in it points one level too deep and fails the build. It
-deliberately contains no build overrides: Vercel auto-detects Vite from
-`frontend/package.json` and that already works.
+**From `render.yaml`** (Blueprint): point Render at the repository and choose
+**New → Blueprint**. It sets `healthCheckPath: /api/health` and attaches a 1 GB
+disk at `/var/data`, with `FEEDBACK_LOG_DIR` pointing into it so the operator
+feedback log survives redeploys.
 
-To run split hosting, deploy the API as a container (see above) and then wire the
-two together:
+Instance sizing: the models train at startup, so CPU decides how long that takes.
+**Free** (0.1 CPU) works but boots slowly and spins down after inactivity, so the
+next visitor waits through the warm-up again. **Starter** (0.5 CPU) boots several
+times faster and stays awake — the better choice for a live demo. 512 MB of RAM
+is enough either way.
 
-| Where | Setting | Value |
-|---|---|---|
-| Vercel project → Environment Variables | `VITE_API_BASE_URL` | `https://your-api-host.example.com` |
-| API host | `CORS_ORIGINS` | `https://your-project.vercel.app` |
+Confirm the result:
 
-Both are already supported in code; no changes are needed. Redeploy Vercel after
-setting the variable — it is read at build time, not at runtime.
+```bash
+./scripts/smoke_test.sh https://your-service.onrender.com
+```
 
-Also check **Settings → Deployment Protection** on the Vercel project. Vercel
-Authentication is on by default for some accounts, which makes preview and
-production URLs redirect to a Vercel SSO login instead of serving the app.
-
-The single-service container remains the simpler option: one URL, no CORS, no
-split env wiring, and it is what the health check, blueprint and CI verify.
-
-### Render
-
-`render.yaml` is a ready blueprint — point Render at the repository and choose **New → Blueprint**. It sets `healthCheckPath: /api/health` and attaches a 1 GB disk mounted at `/var/data`, with `FEEDBACK_LOG_DIR` pointed into it so the operator feedback log survives redeploys.
+> Serverless platforms are not an option for this service. The ML stack alone is
+> ~253 MB installed (scipy 99, pandas 72, scikit-learn 48, numpy 34), over
+> Vercel's 250 MB function limit before any project code; and per-invocation
+> functions have no long-lived process to hold the trained models, so the warm-up
+> would run on every cold call or time out.
 
 ### What to expect when hosting
 
@@ -281,17 +272,6 @@ split env wiring, and it is what the health check, blueprint and CI verify.
 | `FRONTEND_DIST` | Override the location of the built UI. Unset it to run API-only. |
 | `CORS_ORIGINS` | Comma-separated allowed origins. Only needed if the UI is hosted separately. |
 | `VITE_API_BASE_URL` | Build-time only. Leave empty for the single-service setup so the bundle calls a relative `/api`. |
-
----
-
-## Original Streamlit dashboard
-
-`app.py` is untouched and still runs, which makes it easy to compare the two front ends side by side:
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py                     # http://localhost:8501
-```
 
 ---
 
