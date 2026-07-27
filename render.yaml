@@ -3,9 +3,10 @@
 # One Docker service serving both the API and the React bundle. Deploy by
 # pointing Render at this repository: New > Blueprint.
 #
-# The models train during startup (~25s), so the first deploy takes a little
-# longer to go live than a plain web app. `initialDeployHook` is deliberately
-# unset — there is no migration step, and nothing to run before serving.
+# The models are trained during the image build, so the service is ready ~0.3s
+# after the container starts; the build itself takes ~25s longer in exchange.
+# `initialDeployHook` is deliberately unset — there is no migration step, and
+# nothing to run before serving.
 
 services:
   - type: web

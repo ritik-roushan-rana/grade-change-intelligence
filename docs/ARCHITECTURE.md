@@ -182,8 +182,14 @@ draws what Python returns.
 4. JSON-safe results render as risk cards, explanation text and suggestion cards
 5. Accept/Reject posts to `POST /api/feedback` → `FeedbackLogger.log_decision()` writes to CSV
 
-Models train once at API startup (~25 s), so requests are served from warm
-objects rather than retraining per call.
+Models are loaded once at API startup, so requests are served from warm objects
+rather than retraining per call. Fitting the estimators is the expensive part
+(~22 of the ~25 startup seconds) and depends only on the CSVs, so the container
+build runs `scripts/build_model_cache.py` and startup reloads the fitted objects
+from `artifacts/model_cache.joblib` in ~0.3 s instead. The artifact is keyed to
+the datasets, the files in `modules/` and the library versions that pickled the
+estimators; on any mismatch the API trains as before, so the cache can change
+startup time but never the predictions. `/api/health` reports which path ran.
 
 ---
 
