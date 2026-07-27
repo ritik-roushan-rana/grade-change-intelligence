@@ -39,22 +39,35 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY modules/ ./modules/
 COPY data/ ./data/
 COPY backend/ ./backend/
+COPY scripts/build_model_cache.py ./scripts/build_model_cache.py
+
+# Train here, once, instead of on every cold start. Fitting the Random Forest
+# and the Gradient Boosting regressor is ~22 of the ~25 startup seconds, and the
+# result depends only on the CSVs above — on a throttled shared-CPU host that
+# same work took minutes and every sleeping instance paid it again. The API
+# reloads these fitted objects in ~0.3s and falls back to training if the
+# artifact does not match the data it is serving.
+RUN python scripts/build_model_cache.py
 
 COPY --from=ui /ui/dist ./frontend/dist
 
-# The feedback log is the only path written at runtime. On a host with an
-# ephemeral filesystem it resets on redeploy; mount a volume here to keep it.
-RUN mkdir -p /app/feedback_logs
+# The feedback log is the only path written at runtime. World-writable because
+# some hosts (Hugging Face Spaces, for one) run the container as a non-root UID.
+# On a host with an ephemeral filesystem it resets on redeploy; mount a volume
+# here, or point FEEDBACK_LOG_DIR at one, to keep it.
+RUN mkdir -p /app/feedback_logs && chmod 777 /app/feedback_logs
 VOLUME ["/app/feedback_logs"]
 
+# 8000 is the default; hosts that inject PORT (Render) or expect another port
+# (Spaces, via app_port) are honoured by the CMD below.
 EXPOSE 8000
 
-# Models train during startup (~25s), so the socket opens only once the service
-# is genuinely ready — a health check that succeeds means it can serve traffic.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health').status==200 else 1)"
+# The socket opens only once the models are loaded, so a passing health check
+# means the service can actually serve traffic.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import os,urllib.request,sys; port=os.environ.get('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health').status==200 else 1)"
 
 WORKDIR /app/backend
-# Single worker on purpose: each worker would train its own copy of the models,
-# tripling memory and startup for no benefit at demo concurrency.
+# Single worker on purpose: each worker would load its own copy of the models,
+# tripling memory for no benefit at demo concurrency.
 CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

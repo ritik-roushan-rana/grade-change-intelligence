@@ -1,0 +1,60 @@
+# Fly.io config for Grade Change Intelligence.
+#
+#   fly launch --copy-config --no-deploy    # first time: creates the app
+#   fly deploy                              # build the Dockerfile and release
+#
+# Why Fly for this service: the machine suspends when idle and resumes on the
+# next request in about a second, instead of a full container boot on a throttled
+# shared core. Combined with the models being trained at image build time, a cold
+# visit is a wake-up, not a warm-up.
+#
+# Rename `app` before the first deploy — app names are globally unique.
+
+app = "grade-change-intelligence"
+primary_region = "iad"
+
+[build]
+dockerfile = "Dockerfile"
+
+[env]
+PORT = "8000"
+
+[http_service]
+internal_port = 8000
+force_https = true
+# Suspend rather than stop: the machine's memory is snapshotted, so a wake keeps
+# the already-loaded models and answers in ~1s. Fly falls back to a normal stop
+# if suspend is unavailable for the machine size, which costs a container start.
+auto_stop_machines = "suspend"
+auto_start_machines = true
+# 0 lets an idle demo cost nothing. Set to 1 to keep it permanently warm — that
+# is a running machine billed by the second, so it is a deliberate choice.
+min_machines_running = 0
+# One machine, one process: each extra worker would load its own copy of the
+# models for no gain at demo concurrency.
+processes = ["app"]
+
+[[http_service.checks]]
+interval = "30s"
+timeout = "5s"
+grace_period = "15s"
+method = "GET"
+path = "/api/health"
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
+
+# The feedback log is the only runtime write, and it resets whenever the machine
+# is replaced. To keep it, create a volume and point the app at it:
+#
+#   fly volumes create gci_data --size 1 --region iad
+#
+# then uncomment both blocks below and redeploy.
+#
+# [mounts]
+#   source = "gci_data"
+#   destination = "/data"
+#
+# and add to [env]:
+#   FEEDBACK_LOG_DIR = "/data/feedback_logs"

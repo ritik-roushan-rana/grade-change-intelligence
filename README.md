@@ -1,11 +1,13 @@
 # Grade Change Intelligence System
 
-**Live demo:** <https://grade-change-intelligence-latest.onrender.com>
+**Live demo:** deploy your own in a few minutes — see [Deployment](#deployment).
 
-> Hosted on a free instance, which sleeps after ~15 minutes of inactivity. A cold
-> visit waits out the model warm-up — measured at 7 minutes on that instance's
-> 0.1 CPU. Open the link a few minutes before showing it to anyone, or move the
-> service to a paid instance so it stays awake.
+> Startup no longer trains anything. The two estimators are fitted during the
+> image build and stored in `artifacts/model_cache.joblib`, so the service is
+> ready **~0.3 s** after the container starts, against the ~25 s it used to spend
+> retraining — 7 minutes of it on a free 0.1-CPU instance, which is what made the
+> old demo link look broken. Ready-made configs for Fly.io, Render and Hugging
+> Face Spaces are in the repo.
 
 An intelligent assistant for a paper mill's Quality Control System (QCS) that predicts and helps prevent off-spec paper during grade changes, learning from historical transition data.
 
@@ -40,16 +42,28 @@ uvicorn main:app --port 8000
 Wait for the readiness line before opening the UI:
 
 ```
-Models ready (23.9s). 119 events, 344 recovery patterns.
+Models ready (23.5s). 119 events, 344 recovery patterns.
 ```
 
 That pause is the one-time warm-up: reading ~50K samples, running the correlation suite, training the classifier and regressor, and building the KNN recovery library. It happens **once at startup**, not per request, so every API call afterwards is served from warm objects.
 
-Check it with:
+Skip it after the first run by fitting the models once and caching them:
+
+```bash
+python3 scripts/build_model_cache.py     # ~25s, writes artifacts/model_cache.joblib
+```
+
+Startup then drops to **~0.3 s** — the API reloads the fitted objects instead of
+retraining. The cache is keyed to the CSVs, the files in `modules/` and the
+installed library versions, so editing a model or regenerating the data makes the
+API ignore it and train as before. Rerun the script to refresh it.
+
+Check either path with:
 
 ```bash
 curl http://127.0.0.1:8000/api/health
-# {"status":"ready","events":119,"startup_seconds":23.91}
+# {"status":"ready","events":119,"startup_seconds":0.31,"models":"cache"}
+# models: "cache" = restored from artifacts/, "trained" = fitted in this process
 ```
 
 Interactive API docs: <http://127.0.0.1:8000/docs>
@@ -138,6 +152,7 @@ grade-change-intelligence/
 │       ├── api.py                      # Route definitions
 │       ├── services.py                 # Read paths into the models + trend extrapolation
 │       ├── registry.py                 # Process-wide singletons (data, models, feedback log)
+│       ├── model_cache.py              # Load/save the build-time trained models
 │       ├── paths.py                    # Locates the repo root, data CSVs, feedback log
 │       ├── schemas.py                  # Request validation
 │       ├── serialization.py            # pandas/numpy → JSON-safe values
@@ -149,8 +164,11 @@ grade-change-intelligence/
 │       ├── store/                      # Zustand: selected event, sim time, decisions
 │       ├── components/{ui,charts,layout,monitor}/
 │       └── pages/                      # One file per view
-├── Dockerfile                          # Multi-stage build: UI bundle + API in one image
+├── Dockerfile                          # Multi-stage build: UI bundle + trained models + API
+├── fly.toml                            # Fly.io config (suspend/resume, health check)
 ├── render.yaml                         # Render blueprint (health check + feedback disk)
+├── deploy/huggingface/                 # Space card front matter + one-command deploy script
+├── scripts/build_model_cache.py        # Fit the models once, for fast startup
 ├── scripts/smoke_test.sh               # Verify any running deployment
 ├── modules/                            # Unchanged, validated model code
 │   ├── correlation_analysis.py
@@ -158,7 +176,7 @@ grade-change-intelligence/
 │   ├── recommendation_engine.py
 │   └── recipe_limits.py
 ├── data/                               # Process timeseries (~50K rows) + 119-event summary
-├── scripts/                            # Dataset generator, evaluation report, smoke test
+├── artifacts/                          # Trained models (build output, not committed)
 ├── docs/                               # ARCHITECTURE.md, DOCUMENTATION.md
 └── feedback_logs/                      # Operator decision log (written at runtime)
 ```
@@ -202,9 +220,14 @@ docker run -p 8000:8000 ghcr.io/ritik-roushan-rana/grade-change-intelligence:lat
 
 Then open <http://localhost:8000>. The multi-stage build compiles the UI in a Node stage and copies the bundle into the Python stage alongside `modules/` and `data/`.
 
-Any host that runs a container will take this image as-is: Render, Fly.io,
-Railway, Cloud Run, an EC2 box with Docker. Point it at port 8000 (or set `PORT`)
-and give it a 512 MB instance.
+The build also runs `scripts/build_model_cache.py`, so the image ships with the
+models already fitted and the container is ready ~0.3 s after it starts. That is
+the difference between a demo link that opens and one that looks broken while a
+throttled CPU retrains a Random Forest.
+
+Any host that runs a container will take this image as-is: Hugging Face Spaces,
+Render, Fly.io, Railway, Cloud Run, an EC2 box with Docker. Point it at port 8000
+(or set `PORT`) and give it a 512 MB instance.
 
 ### Verifying a deployment
 
@@ -227,7 +250,70 @@ by `index.html` is actually served. Non-zero exit on the first failure.
 Run it against the container before you hand a URL to anyone — there is no CI
 pipeline doing that check for you.
 
-### Render — the deployment target
+### Choosing a host
+
+The prebuilt model artifact removes the warm-up on every host, so what separates
+them now is only how fast an idle instance answers again:
+
+| Host | Config in repo | Idle behaviour | Cost |
+|---|---|---|---|
+| **Fly.io** | `fly.toml` | Machine suspends and resumes in ~1 s with the models still in memory | Pay-as-you-go; a 512 MB shared-CPU machine is a couple of dollars a month, and less if it idles |
+| **Render** | `render.yaml` | Free spins down after ~15 min, then a container start on 0.1 CPU; Starter stays awake | Free, or $7/mo Starter |
+| **Hugging Face Spaces** | `deploy/huggingface/` | Free CPU basic (2 vCPU, 16 GB) sleeps after ~48 h and restarts on a visit | The hardware has no hourly cost, but creating a Docker Space needs a paid HF plan |
+| **Cloud Run / any container host** | — | Scales to zero; cold visit is an image pull plus ~0.3 s | Free tier covers demo traffic |
+
+### Fly.io — the recommended target
+
+Suspend-and-resume is the reason: a woken machine still has the loaded models in
+memory, so an idle demo answers in about a second rather than booting a container.
+
+```bash
+fly launch --copy-config --no-deploy   # rename `app` in fly.toml first — names are global
+fly deploy
+./scripts/smoke_test.sh https://your-app.fly.dev
+```
+
+`fly.toml` sets `internal_port = 8000`, a `/api/health` check, a 512 MB
+shared-CPU machine, and `min_machines_running = 0` so an idle demo costs nothing.
+Set it to `1` to keep the service permanently warm. The feedback log is
+ephemeral unless you attach a volume — the commented block at the bottom of
+`fly.toml` has the two commands.
+
+### Hugging Face Spaces
+
+A Space runs this same `Dockerfile` on **CPU basic** (2 vCPU, 16 GB — 20× the CPU
+of Render's free plan) and only sleeps after about two days of inactivity. Worth
+knowing before you plan on it: the hardware itself is free, but Hugging Face now
+requires a paid plan to *create* a Space that runs on compute, Docker included.
+
+1. Create the Space: <https://huggingface.co/new-space> → **Docker → Blank**,
+   hardware **CPU basic**.
+2. Push this repository to it:
+
+```bash
+export HF_TOKEN=hf_...                                  # write-scoped token
+./deploy/huggingface/deploy.sh your-name/grade-change-intelligence
+```
+
+The script exports the tracked files of `HEAD`, prepends the Space card front
+matter from `deploy/huggingface/space_card.md` to the README (Spaces reads
+`sdk: docker` and `app_port: 8000` from there), and pushes one commit. Your
+working tree is untouched, and it refuses to run on a dirty tree, so what you
+publish is a commit you can point at.
+
+3. Watch the build, then verify the running Space:
+
+```bash
+./scripts/smoke_test.sh https://your-name-grade-change-intelligence.hf.space
+```
+
+Notes specific to Spaces: the container runs as UID 1000, so the feedback log
+directory is world-writable in the image; disk is ephemeral, so the log resets on
+restart unless you attach persistent storage and set
+`FEEDBACK_LOG_DIR=/data/feedback_logs`. A public Space is a public URL with no
+auth in front of it — keep it private if that matters.
+
+### Render — the original target, still supported
 
 Two ways in, both landing on the same single service.
 
@@ -245,11 +331,13 @@ pipeline refreshes it):
 3. **Advanced → Health Check Path:** `/api/health`
 4. No environment variables and no start command — Render injects `PORT` and the image honours it.
 
-Instance sizing: the models train at startup, so CPU decides how long that takes.
-**Free** (0.1 CPU) works but boots slowly and spins down after inactivity, so the
-next visitor waits through the warm-up again. **Starter** (0.5 CPU) boots several
-times faster and stays awake — the better choice for a live demo. 512 MB of RAM
-is enough either way.
+Instance sizing: with the models baked into the image, startup is no longer the
+bottleneck on any plan. What remains on **Free** (0.1 CPU) is that the instance
+spins down after ~15 minutes of inactivity, so the next visitor waits for the
+container to start, and every request is served by a tenth of a core. **Starter**
+(0.5 CPU) stays awake. 512 MB of RAM is enough either way. Note that the
+image published to GHCR predates the model cache, so a deployment from that
+snapshot still trains at startup — build from `render.yaml` to get the fast boot.
 
 Confirm the result:
 
@@ -268,11 +356,11 @@ Confirm the result:
 
 | | |
 |---|---|
-| Cold start | **~25 s on a fast CPU, up to ~60 s on a shared runner** (measured 59 s on a GitHub Actions runner). Models train at startup, not per request. The socket opens only when the service is genuinely ready, so a passing health check means it can serve traffic — but give the host a generous initial health-check grace period. |
+| Cold start | **~0.3 s** from the image built by this `Dockerfile`: the models are fitted during the build and reloaded from `artifacts/model_cache.joblib`. Without that artifact (or if it no longer matches the data) the service trains at startup instead — ~25 s on a fast CPU, minutes on a throttled shared core. `/api/health` reports which path ran via `"models": "cache" \| "trained"`. |
 | Memory | **~190 MB** in the container once warm (~80 MB for the API process alone). A 512 MB instance is enough; 256 MB is not. |
-| Workers | **One.** Each worker would train its own copy of the models — triple the memory and startup for no gain at demo concurrency. |
+| Workers | **One.** Each worker would load its own copy of the models — triple the memory for no gain at demo concurrency. |
 | Feedback log | The only runtime write. On a host with an ephemeral filesystem it resets on redeploy; mount a volume and set `FEEDBACK_LOG_DIR` to keep it. |
-| Sleeping instances | Free tiers that idle out pay the ~25 s warm-up again on the next request. For a live demo, use a plan that stays awake. |
+| Sleeping instances | An idled-out instance pays a container start on the next request — seconds, not minutes, now that nothing retrains. Fly's suspend/resume skips even that. Render free idles out after ~15 minutes, Spaces free CPU after ~48 hours. |
 | Auth | **There is none.** Every endpoint, including `POST /api/feedback`, is open. That is fine for a private demo URL; put it behind access control before exposing it anywhere real. |
 
 ### Environment variables
@@ -280,6 +368,7 @@ Confirm the result:
 | Variable | Purpose |
 |---|---|
 | `PORT` | Port to bind. Defaults to 8000; hosts that inject it are honoured. |
+| `ARTIFACT_DIR` | Where the trained-model cache is read and written. Defaults to `artifacts/`. Point it at an empty directory to force training. |
 | `FEEDBACK_LOG_DIR` | Where `feedback_log.csv` lives. Point at a mounted volume to persist it. |
 | `FRONTEND_DIST` | Override the location of the built UI. Unset it to run API-only. |
 | `CORS_ORIGINS` | Comma-separated allowed origins. Only needed if the UI is hosted separately. |

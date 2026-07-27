@@ -17,6 +17,11 @@ __pycache__/
 # Runtime output — the container creates its own empty log
 feedback_logs/*.csv
 
+# Trained models: built inside the image so the pickles match the image's own
+# Python and library versions. A host-built copy would be ignored at startup
+# anyway, so keep it out of the context.
+artifacts/
+
 # Repo / editor cruft
 .git/
 .github/

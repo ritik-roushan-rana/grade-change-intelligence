@@ -24,6 +24,9 @@ def health():
         "status": "ready" if registry.ready else "loading",
         "events": len(services.event_ids()) if registry.ready else 0,
         "startup_seconds": registry.startup_seconds,
+        # "cache" means the models were restored from the build-time artifact;
+        # "trained" means this process fitted them, which is the slow path.
+        "models": "cache" if registry.from_cache else "trained",
     }
 
 
